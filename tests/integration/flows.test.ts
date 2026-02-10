@@ -2,14 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
 import { SlugGenerator } from '../../src/core/slug-generator.ts';
-import type { Logger } from '../../src/types/index.ts';
-
-const createMockLogger = (): Logger => ({
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-});
 
 describe('User creates a file sharing session', () => {
   it('accepts valid CLI commands with various time formats', () => {
@@ -45,7 +37,7 @@ describe('System generates unique sharing links', () => {
 
 describe('Session security and access control', () => {
   it('enforces single-download policy', async () => {
-    const manager = new InMemorySessionManager(createMockLogger());
+    const manager = new InMemorySessionManager();
 
     const config = parseCliArgs([
       '-f',
@@ -66,7 +58,7 @@ describe('Session security and access control', () => {
   });
 
   it('automatically expires sessions after time limit', async () => {
-    const manager = new InMemorySessionManager(createMockLogger());
+    const manager = new InMemorySessionManager();
 
     const config = parseCliArgs([
       '-f',

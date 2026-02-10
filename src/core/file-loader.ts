@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { DropSession } from '../types/session.ts';
-import type { Logger } from '../types/utils.ts';
 
 export class FileLoaderError extends Error {
   constructor(
@@ -18,21 +17,15 @@ export interface FileLoader {
 }
 
 export class InMemoryFileLoader implements FileLoader {
-  private logger: Logger;
-
-  constructor(logger: Logger) {
-    this.logger = logger;
-  }
-
   async load(filePath: string, sessionId: string, expiresAt: Date): Promise<DropSession> {
-    this.logger.debug(`Loading file: ${filePath}`);
+    console.debug(`Loading file: ${filePath}`);
 
     try {
       const data = await readFile(filePath);
       const fileName = basename(filePath);
       const mimeType = this.detectMimeType(fileName);
 
-      this.logger.info(`File loaded: ${fileName} (${this.formatBytes(data.length)})`);
+      console.info(`File loaded: ${fileName} (${this.formatBytes(data.length)})`);
 
       return {
         id: sessionId,
@@ -46,7 +39,7 @@ export class InMemoryFileLoader implements FileLoader {
       };
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      this.logger.error(`Failed to load file: ${filePath}`, err.message);
+      console.error(`Failed to load file: ${filePath}`, err.message);
       throw new FileLoaderError(`Cannot load file: ${filePath}`, err);
     }
   }

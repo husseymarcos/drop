@@ -6,20 +6,13 @@ import type { SessionManager } from '../core/session-manager.ts';
 import { InMemorySessionManager, SessionManagerError } from '../core/session-manager.ts';
 import type { DropConfig } from '../types/config.ts';
 import type { DropSession } from '../types/session.ts';
-import type { Logger, LogLevel } from '../types/utils.ts';
-import { createLogger } from '../utils/logger.ts';
 import { CliError, parseCliArgs, printHelp } from './args-parser.ts';
 
 const DEFAULT_PORT = 8080;
 
 export class DropCli {
-  private logger: Logger;
   private sessionManager?: SessionManager;
   private server?: DropServer;
-
-  constructor() {
-    this.logger = createLogger(process.env.LOG_LEVEL as LogLevel | undefined);
-  }
 
   async run(args: string[]): Promise<void> {
     try {
@@ -33,12 +26,12 @@ export class DropCli {
       await this.validateAndRun(config);
     } catch (error) {
       if (error instanceof CliError) {
-        this.logger.error(error.message);
+        console.error(error.message);
         console.error('\nRun with -h or --help for usage information.');
         process.exit(1);
       }
 
-      this.logger.error('Unexpected error:', error);
+      console.error('Unexpected error:', error);
       process.exit(1);
     }
   }
@@ -51,10 +44,10 @@ export class DropCli {
 
     config.filePath = resolvedPath;
 
-    this.sessionManager = new InMemorySessionManager(this.logger);
+    this.sessionManager = new InMemorySessionManager();
 
     const port = config.port || DEFAULT_PORT;
-    this.server = new BunDropServer(this.sessionManager, this.logger, { port, host: '0.0.0.0' });
+    this.server = new BunDropServer(this.sessionManager, { port, host: '0.0.0.0' });
 
     let session: DropSession;
     try {
@@ -92,7 +85,7 @@ export class DropCli {
 
   private setupShutdownHandlers(): void {
     const shutdown = async (signal: string) => {
-      this.logger.info(`Received ${signal}, shutting down...`);
+      console.info(`Received ${signal}, shutting down...`);
       await this.shutdown();
       process.exit(0);
     };
@@ -114,7 +107,7 @@ export class DropCli {
     if (this.sessionManager) {
       this.sessionManager.cleanup();
     }
-    this.logger.info('Goodbye!');
+    console.info('Goodbye!');
   }
 
   private formatBytes(bytes: number): string {
@@ -126,7 +119,6 @@ export class DropCli {
   }
 }
 
-// Run CLI if this file is executed directly
 if (import.meta.main) {
   const cli = new DropCli();
   await cli.run(process.argv.slice(2));

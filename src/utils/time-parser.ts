@@ -1,4 +1,4 @@
-import type { ParsedDuration } from '../types/utils.ts';
+import type { ParsedDuration } from '../types/time.ts';
 
 const TIME_UNITS = {
   s: 1000,

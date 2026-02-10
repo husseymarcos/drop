@@ -1,5 +1,4 @@
 import type { ServerConfig } from '../types/config.ts';
-import type { Logger } from '../types/utils.ts';
 import type { SessionManager } from './session-manager.ts';
 
 export class DropServerError extends Error {
@@ -21,12 +20,10 @@ export interface DropServer {
 export class BunDropServer implements DropServer {
   private server?: ReturnType<typeof Bun.serve>;
   private sessionManager: SessionManager;
-  private logger: Logger;
   private config: ServerConfig;
 
-  constructor(sessionManager: SessionManager, logger: Logger, config: ServerConfig) {
+  constructor(sessionManager: SessionManager, config: ServerConfig) {
     this.sessionManager = sessionManager;
-    this.logger = logger;
     this.config = config;
   }
 
@@ -38,7 +35,7 @@ export class BunDropServer implements DropServer {
         fetch: this.handleRequest.bind(this),
       });
 
-      this.logger.info(`Server started on ${this.getUrl()}`);
+      console.info(`Server started on ${this.getUrl()}`);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       throw new DropServerError(`Failed to start server on port ${this.config.port}`, err);
@@ -48,7 +45,7 @@ export class BunDropServer implements DropServer {
   async stop(): Promise<void> {
     if (this.server) {
       this.server.stop();
-      this.logger.info('Server stopped');
+      console.info('Server stopped');
     }
   }
 
@@ -61,7 +58,7 @@ export class BunDropServer implements DropServer {
     const url = new URL(request.url);
     const slug = url.pathname.slice(1); // Remove leading /
 
-    this.logger.debug(`Request: ${request.method} ${url.pathname}`);
+    console.debug(`Request: ${request.method} ${url.pathname}`);
 
     if (request.method !== 'GET') {
       return new Response('Method not allowed', { status: 405 });
@@ -105,19 +102,19 @@ export class BunDropServer implements DropServer {
     const session = this.sessionManager.getSession(slug);
 
     if (!session) {
-      this.logger.warn(`Session not found or expired: ${slug}`);
+      console.warn(`Session not found or expired: ${slug}`);
       return new Response('File not found or expired', { status: 404 });
     }
 
     if (this.sessionManager.isExpired(session)) {
-      this.logger.warn(`Session expired: ${slug}`);
+      console.warn(`Session expired: ${slug}`);
       return new Response('File has expired', { status: 410 });
     }
 
     // Mark session as consumed
     this.sessionManager.consumeSession(slug);
 
-    this.logger.info(`Serving file: ${session.fileName} (${session.fileSize} bytes)`);
+    console.info(`Serving file: ${session.fileName} (${session.fileSize} bytes)`);
 
     return new Response(session.data, {
       headers: {
