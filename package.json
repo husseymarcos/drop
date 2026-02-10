@@ -1,7 +1,7 @@
 {
   "name": "drop",
   "version": "1.0.0",
-  "module": "index.ts",
+  "module": "drop.ts",
   "type": "module",
   "bin": {
     "drop": "./drop.ts"

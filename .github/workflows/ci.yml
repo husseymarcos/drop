@@ -64,4 +64,4 @@ jobs:
         run: bunx tsc --noEmit
 
       - name: Build
-        run: bun build --target=bun index.ts --outfile=dist/drop.js
+        run: bun build --target=bun drop.ts --outfile=dist/drop.js
