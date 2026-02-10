@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser';
 import { InMemorySessionManager } from '../../src/core/session-manager';
 import { SlugGenerator } from '../../src/core/slug-generator';
+import { fixtureFile } from '../setup';
 
 describe('User creates a file sharing session', () => {
   it('accepts valid CLI commands with various time formats', () => {
@@ -41,7 +42,7 @@ describe('Session security and access control', () => {
 
     const config = parseCliArgs([
       '-f',
-      '/Users/marcoshussey/Documents/Proyects/drop/package.json',
+      fixtureFile,
       '-t',
       '5m',
     ]).config;
@@ -62,7 +63,7 @@ describe('Session security and access control', () => {
 
     const config = parseCliArgs([
       '-f',
-      '/Users/marcoshussey/Documents/Proyects/drop/package.json',
+      fixtureFile,
       '-t',
       '1s',
     ]).config;

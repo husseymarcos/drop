@@ -1,0 +1,6 @@
+Once upon a time there was a small script that lived inside a computer.
+Every night it would count its variables from one to ten, and then shut down.
+One evening a bug crept in and said, "I will keep you awake forever."
+The script was brave. It ran its tests, caught the bug, and fixed it.
+Then it closed its connections, freed its memory, and went to sleep.
+Good night, little script.

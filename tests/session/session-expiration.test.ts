@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
+import { fixtureFile } from '../setup.ts';
 
 describe('Session expiration', () => {
   it('recognizes expired sessions', async () => {
@@ -8,7 +9,7 @@ describe('Session expiration', () => {
 
     const config = parseCliArgs([
       '-f',
-      '/Users/marcoshussey/Documents/Proyects/drop/package.json',
+      fixtureFile,
       '-t',
       '1s',
     ]).config;
@@ -28,7 +29,7 @@ describe('Session expiration', () => {
 
     const config = parseCliArgs([
       '-f',
-      '/Users/marcoshussey/Documents/Proyects/drop/package.json',
+      fixtureFile,
       '-t',
       '1h',
     ]).config;

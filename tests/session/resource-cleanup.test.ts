@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
+import { fixtureFile } from '../setup.ts';
 
 describe('Resource cleanup', () => {
   it('removes all sessions on cleanup', async () => {
@@ -8,7 +9,7 @@ describe('Resource cleanup', () => {
 
     const config = parseCliArgs([
       '-f',
-      '/Users/marcoshussey/Documents/Proyects/drop/package.json',
+      fixtureFile,
       '-t',
       '5m',
     ]).config;

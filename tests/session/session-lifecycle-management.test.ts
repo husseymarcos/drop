@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
+import { fixtureFile } from '../setup.ts';
 
 describe('Session lifecycle management', () => {
   let manager: InMemorySessionManager;
@@ -16,7 +17,7 @@ describe('Session lifecycle management', () => {
   it('enforces single-download policy', async () => {
     const config = parseCliArgs([
       '-f',
-      '/Users/marcoshussey/Documents/Proyects/drop/package.json',
+      fixtureFile,
       '-t',
       '5m',
     ]).config;
