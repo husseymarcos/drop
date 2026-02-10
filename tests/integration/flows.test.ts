@@ -1,11 +1,4 @@
-/**
- * Business Behavior: End-to-End File Sharing Flows
- *
- * Verifies complete user scenarios and business processes
- * without testing implementation details.
- */
-
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
 import { SlugGenerator } from '../../src/core/slug-generator.ts';
@@ -51,54 +44,51 @@ describe('System generates unique sharing links', () => {
 });
 
 describe('Session security and access control', () => {
-  it('enforces single-download policy', () => {
+  it('enforces single-download policy', async () => {
     const manager = new InMemorySessionManager(createMockLogger());
-    const session = {
-      id: 'secure-session',
-      fileName: 'confidential.pdf',
-      fileSize: 1024,
-      mimeType: 'application/pdf',
-      data: Buffer.from('content'),
-      expiresAt: new Date(Date.now() + 300000),
-      isConsumed: false,
-      downloadCount: 0,
-    };
 
-    // biome-ignore lint/suspicious/noExplicitAny: Accessing private member for testing
-    (manager as any).sessions.set('secure-session', session);
+    const config = parseCliArgs([
+      '-f',
+      '/Users/marcoshussey/Documents/Proyects/drop/package.json',
+      '-t',
+      '5m',
+    ]).config;
+    const session = await manager.createSession(config);
 
-    // First download succeeds
-    expect(manager.consumeSession('secure-session')).toBeDefined();
+    const consumed = manager.consumeSession(session.id);
+    expect(consumed).toBeDefined();
+    expect(consumed?.isConsumed).toBe(true);
 
-    // Second download fails
-    expect(manager.consumeSession('secure-session')).toBeUndefined();
+    expect(manager.consumeSession(session.id)).toBeUndefined();
+    expect(manager.getSession(session.id)).toBeUndefined();
+
+    manager.cleanup();
   });
 
-  it('automatically expires sessions after time limit', () => {
+  it('automatically expires sessions after time limit', async () => {
     const manager = new InMemorySessionManager(createMockLogger());
-    const expiredSession = {
-      id: 'expired-session',
-      fileName: 'old.txt',
-      fileSize: 100,
-      mimeType: 'text/plain',
-      data: Buffer.from('content'),
-      expiresAt: new Date(Date.now() - 1000), // Expired
-      isConsumed: false,
-      downloadCount: 0,
-    };
 
-    // biome-ignore lint/suspicious/noExplicitAny: Accessing private member for testing
-    (manager as any).sessions.set('expired-session', expiredSession);
+    const config = parseCliArgs([
+      '-f',
+      '/Users/marcoshussey/Documents/Proyects/drop/package.json',
+      '-t',
+      '1s',
+    ]).config;
+    const session = await manager.createSession(config);
 
-    expect(manager.getSession('expired-session')).toBeUndefined();
-    expect(manager.isExpired(expiredSession)).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    expect(manager.isExpired(session)).toBe(true);
+    expect(manager.getSession(session.id)).toBeUndefined();
+
+    manager.cleanup();
   });
 });
 
 describe('System prevents invalid operations', () => {
   it('rejects incomplete CLI commands', () => {
-    expect(() => parseCliArgs(['-t', '5m'])).toThrow(); // Missing file
-    expect(() => parseCliArgs(['-f', 'file.txt'])).toThrow(); // Missing time
+    expect(() => parseCliArgs(['-t', '5m'])).toThrow();
+    expect(() => parseCliArgs(['-f', 'file.txt'])).toThrow();
   });
 
   it('rejects invalid time specifications', () => {

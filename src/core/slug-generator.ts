@@ -1,42 +1,4 @@
-/**
- * Slug generator - creates unique, readable identifiers
- */
-
-const ADJECTIVES = [
-  'swift',
-  'bright',
-  'calm',
-  'bold',
-  'cool',
-  'warm',
-  'wild',
-  'quiet',
-  'rapid',
-  'smooth',
-  'sharp',
-  'light',
-  'dark',
-  'quick',
-  'brave',
-];
-
-const NOUNS = [
-  'wave',
-  'star',
-  'wind',
-  'fire',
-  'moon',
-  'sun',
-  'bird',
-  'fish',
-  'tree',
-  'flow',
-  'path',
-  'beam',
-  'spark',
-  'drop',
-  'leaf',
-];
+import { defaultSuffix, generate } from 'memorable-ids';
 
 export class SlugGenerator {
   private usedSlugs: Set<string> = new Set();
@@ -46,10 +8,11 @@ export class SlugGenerator {
     const maxAttempts = 100;
 
     while (attempts < maxAttempts) {
-      const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-      const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-      const num = Math.floor(Math.random() * 900) + 100; // 100-999
-      const slug = `${adj}-${noun}-${num}`;
+      const slug = generate({
+        components: 2,
+        suffix: defaultSuffix,
+        separator: '-',
+      });
 
       if (!this.usedSlugs.has(slug)) {
         this.usedSlugs.add(slug);
@@ -59,7 +22,7 @@ export class SlugGenerator {
       attempts++;
     }
 
-    // Fallback to timestamp-based slug
+    // Fallback: use timestamp if we can't find a unique slug
     return `drop-${Date.now()}`;
   }
 

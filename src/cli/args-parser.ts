@@ -1,7 +1,3 @@
-/**
- * CLI argument parser
- */
-
 import { parseArgs } from 'node:util';
 import type { DropConfig } from '../types/index.ts';
 import { parseDuration, TimeParserError } from '../utils/time-parser.ts';

@@ -4,8 +4,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import type { DropSession } from '../types/index.ts';
-import type { Logger } from '../types/index.ts';
+import type { DropSession, Logger } from '../types/index.ts';
 
 export class FileLoaderError extends Error {
   constructor(

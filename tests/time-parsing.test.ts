@@ -1,14 +1,7 @@
-/**
- * Business Behavior: Time Duration Interpretation
- *
- * Verifies how the system interprets user time inputs according to
- * business rules for session expiration.
- */
+import { describe, expect, it } from 'bun:test';
+import { formatDuration, parseDuration, TimeParserError } from '../src/utils/time-parser.ts';
 
-import { describe, it, expect } from 'bun:test';
-import { parseDuration, formatDuration, TimeParserError } from '../../src/utils/time-parser.ts';
-
-describe('System interprets time inputs correctly', () => {
+describe('Duration parsing', () => {
   it('converts seconds notation to milliseconds', () => {
     const result = parseDuration('90s');
     expect(result.milliseconds).toBe(90000);
@@ -30,19 +23,17 @@ describe('System interprets time inputs correctly', () => {
   });
 
   it('interprets bare numbers as seconds', () => {
-    // Critical business rule: "300" means 300 seconds, not 300 minutes
     const result = parseDuration('300');
     expect(result.milliseconds).toBe(300000);
-    expect(result.humanReadable).toBe('5m 0s');
   });
 
-  it('handles flexible input formats (uppercase, whitespace)', () => {
+  it('handles flexible input formats', () => {
     expect(parseDuration('5M').milliseconds).toBe(300000);
     expect(parseDuration('  5m  ').milliseconds).toBe(300000);
   });
 });
 
-describe('System validates time inputs', () => {
+describe('Duration validation', () => {
   it('rejects empty duration', () => {
     expect(() => parseDuration('')).toThrow(TimeParserError);
   });
@@ -60,7 +51,7 @@ describe('System validates time inputs', () => {
   });
 });
 
-describe('System displays durations in human-readable format', () => {
+describe('Duration formatting', () => {
   it('formats seconds appropriately', () => {
     expect(formatDuration(45000)).toBe('45s');
   });

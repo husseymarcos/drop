@@ -2,8 +2,8 @@
  * Drop session manager - manages the lifecycle of a file sharing session
  */
 
-import type { DropSession, Logger, DropConfig } from '../types/index.ts';
-import { type FileLoader, InMemoryFileLoader, FileLoaderError } from './file-loader.ts';
+import type { DropConfig, DropSession, Logger } from '../types/index.ts';
+import { type FileLoader, FileLoaderError, InMemoryFileLoader } from './file-loader.ts';
 import { SlugGenerator } from './slug-generator.ts';
 
 export class SessionManagerError extends Error {

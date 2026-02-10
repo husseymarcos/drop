@@ -9,4 +9,4 @@ export type { DropConfig, ServerConfig } from './config.ts';
 export type { DropSession } from './session.ts';
 
 // Utility types
-export type { ParsedDuration, LogLevel, Logger } from './utils.ts';
+export type { Logger, LogLevel, ParsedDuration } from './utils.ts';

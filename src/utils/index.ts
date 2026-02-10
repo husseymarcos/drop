@@ -3,4 +3,4 @@
  */
 
 export { ConsoleLogger, createLogger } from './logger.ts';
-export { parseDuration, formatDuration, TimeParserError } from './time-parser.ts';
+export { formatDuration, parseDuration, TimeParserError } from './time-parser.ts';
