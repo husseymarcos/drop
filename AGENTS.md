@@ -30,44 +30,12 @@ The process must: read the file, start the HTTP server, generate a unique slug, 
 - **Input:** CLI as above.
 - **Output:** HTTP server on a configurable port; the resource path is a short slug (e.g. `/vuelo-402`).
 
-## Current structure
+## Coding Conventions
 
-```
-drop/
-├── index.ts                  # Entry point
-├── index.old.ts              # Previous implementation (deprecated)
-├── src/
-│   ├── types/
-│   │   └── index.ts          # TypeScript interfaces and types
-│   ├── utils/
-│   │   ├── logger.ts         # Logging utility with configurable levels
-│   │   ├── time-parser.ts    # Duration parser (5m, 1h, 90s)
-│   │   └── index.ts          # Barrel exports
-│   ├── core/
-│   │   ├── file-loader.ts    # File loading into memory
-│   │   ├── slug-generator.ts # Unique slug generator
-│   │   ├── session-manager.ts # Session lifecycle management
-│   │   ├── server.ts         # HTTP server implementation
-│   │   └── index.ts          # Barrel exports
-│   └── cli/
-│       ├── args-parser.ts    # CLI argument parsing
-│       ├── cli.ts            # DropCli class
-│       └── index.ts          # Barrel exports
-├── tests/
-│   ├── setup.ts              # Test configuration
-│   ├── README.md             # Testing documentation
-│   ├── unit/                 # Unit tests (business logic)
-│   │   ├── time-parser.test.ts
-│   │   ├── slug-generator.test.ts
-│   │   ├── session-manager.test.ts
-│   │   ├── args-parser.test.ts
-│   │   └── file-loader.test.ts
-│   └── integration/          # Integration tests
-│       └── flows.test.ts
-├── package.json
-├── tsconfig.json
-└── .cursor/rules/
-```
+1. **No barrel files**: Do not use `index.ts` files to export modules. Use the `export` keyword directly on the thing you want to export.
+2. **No file-level comments**: Do not use documentation comments at the top of files or regular comments. Prefer good variable and class naming instead.
+3. **Test-Driven Development**: Implement features TDD style - write tests first, then implement the code to make them pass.
+4. **Prefer Bun libraries**: Use Bun's built-in libraries when available instead of external dependencies.```
 
 ## Architecture Overview
 
@@ -132,29 +100,6 @@ The codebase follows a **modular, dependency-injected architecture** designed fo
 ## Testing Strategy (TDD)
 
 Tests are written following **Test-Driven Development** principles, focusing on **business logic** rather than implementation details:
-
-### Test Organization
-- **Unit tests** (`tests/unit/`): Test isolated business logic without I/O
-- **Integration tests** (`tests/integration/`): Test complete business flows
-- **No implementation testing**: Tests verify behavior, not how it's implemented
-
-### Running Tests
-```bash
-bun test              # All tests
-bun run test:unit     # Unit tests only
-bun run test:integration  # Integration tests only
-bun run test:watch    # Watch mode
-```
-
-### What's Tested
-1. **Time parsing**: All formats, edge cases, invalid inputs
-2. **Slug generation**: Format, uniqueness, collision handling
-3. **Session management**: Lifecycle, single-use policy, expiration
-4. **CLI args**: Validation, error handling, business rules
-5. **File loading**: MIME detection, size formatting
-6. **Integration flows**: End-to-end scenarios
-
-See `tests/README.md` for detailed testing documentation.
 
 ## Implementation priorities
 

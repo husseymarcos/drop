@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import type { DropConfig } from '../types/index.ts';
+import type { DropConfig } from '../types/config.ts';
 import { parseDuration, TimeParserError } from '../utils/time-parser.ts';
 
 export class CliError extends Error {

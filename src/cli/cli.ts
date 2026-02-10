@@ -4,7 +4,9 @@ import type { DropServer } from '../core/server.ts';
 import { BunDropServer, DropServerError } from '../core/server.ts';
 import type { SessionManager } from '../core/session-manager.ts';
 import { InMemorySessionManager, SessionManagerError } from '../core/session-manager.ts';
-import type { DropConfig, DropSession, Logger, LogLevel } from '../types/index.ts';
+import type { DropConfig } from '../types/config.ts';
+import type { DropSession } from '../types/session.ts';
+import type { Logger, LogLevel } from '../types/utils.ts';
 import { createLogger } from '../utils/logger.ts';
 import { CliError, parseCliArgs, printHelp } from './args-parser.ts';
 

@@ -1,7 +1,3 @@
-/**
- * Session types for managing file sharing sessions
- */
-
 export interface DropSession {
   id: string;
   fileName: string;

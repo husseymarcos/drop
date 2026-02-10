@@ -1,8 +1,4 @@
-/**
- * Logger utility with configurable log levels
- */
-
-import type { Logger as LoggerInterface, LogLevel } from '../types/index.ts';
+import type { Logger as LoggerInterface, LogLevel } from '../types/utils.ts';
 
 export class ConsoleLogger implements LoggerInterface {
   private level: LogLevel;

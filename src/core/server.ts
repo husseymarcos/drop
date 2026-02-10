@@ -1,8 +1,5 @@
-/**
- * HTTP Server for Drop
- */
-
-import type { Logger, ServerConfig } from '../types/index.ts';
+import type { ServerConfig } from '../types/config.ts';
+import type { Logger } from '../types/utils.ts';
 import type { SessionManager } from './session-manager.ts';
 
 export class DropServerError extends Error {

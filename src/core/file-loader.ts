@@ -1,10 +1,7 @@
-/**
- * File loader - loads files into memory
- */
-
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import type { DropSession, Logger } from '../types/index.ts';
+import type { DropSession } from '../types/session.ts';
+import type { Logger } from '../types/utils.ts';
 
 export class FileLoaderError extends Error {
   constructor(

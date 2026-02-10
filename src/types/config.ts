@@ -1,7 +1,3 @@
-/**
- * Configuration types for Drop CLI and server
- */
-
 export interface DropConfig {
   filePath: string;
   durationMs: number;

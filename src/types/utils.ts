@@ -1,7 +1,3 @@
-/**
- * Utility types for time parsing, logging, and other helpers
- */
-
 export interface ParsedDuration {
   milliseconds: number;
   humanReadable: string;

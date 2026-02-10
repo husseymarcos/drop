@@ -1,9 +1,4 @@
-/**
- * Time duration parser
- * Supports: 5m, 1h, 90s, or raw seconds
- */
-
-import type { ParsedDuration } from '../types/index.ts';
+import type { ParsedDuration } from '../types/utils.ts';
 
 const TIME_UNITS = {
   s: 1000,
