@@ -75,10 +75,10 @@ The codebase follows a **modular, dependency-injected architecture** designed fo
 ### CLI Layer
 
 1. **ArgsParser** (`src/cli/args-parser.ts`)
-   - Node.js util.parseArgs for robust parsing
-   - Validation and error handling
+   - Uses `commander` for option parsing
+   - Validation and error handling via parseDropConfig
 
-2. **DropCli** (`src/cli/index.ts`)
+2. **DropCli** (`src/cli/cli.ts`)
    - Orchestrates components
    - Signal handling (SIGINT, SIGTERM)
    - User-friendly output

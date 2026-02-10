@@ -4,14 +4,12 @@
   "module": "index.ts",
   "type": "module",
   "bin": {
-    "drop": "./index.ts"
+    "drop": "./drop.ts"
   },
   "scripts": {
-    "start": "bun run index.ts",
-    "dev": "bun run --watch index.ts",
+    "start": "bun run drop.ts",
+    "dev": "bun run --watch drop.ts",
     "test": "bun test",
-    "test:integration": "bun test tests/integration",
-    "test:watch": "bun test --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "eslint .",
@@ -31,5 +29,9 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "memorable-ids": "^0.2.0"
   }
 }

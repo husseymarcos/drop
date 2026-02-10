@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { SlugGenerator } from '../../src/core/slug-generator.ts';
+import { SlugGenerator } from '../../src/core/slug-generator';
 
 describe('Slug generation format', () => {
   it('creates identifiers in adjective-noun-number format', () => {

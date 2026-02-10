@@ -22,7 +22,6 @@ export class SlugGenerator {
       attempts++;
     }
 
-    // Fallback: use timestamp if we can't find a unique slug
     return `drop-${Date.now()}`;
   }
 

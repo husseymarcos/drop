@@ -1,8 +1,8 @@
-import type { DropConfig } from '../types/config.ts';
-import type { DropSession } from '../types/session.ts';
-import type { FileLoader } from './file-loader.ts';
-import { FileLoaderError, InMemoryFileLoader } from './file-loader.ts';
-import { SlugGenerator } from './slug-generator.ts';
+import type { DropConfig } from '../types/config';
+import type { DropSession } from '../types/session';
+import type { FileLoader } from './file-loader';
+import { FileLoaderError, InMemoryFileLoader } from './file-loader';
+import { SlugGenerator } from './slug-generator';
 
 export class SessionManagerError extends Error {
   constructor(

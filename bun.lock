@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "drop",
+      "dependencies": {
+        "commander": "^14.0.3",
+        "memorable-ids": "^0.2.0",
+      },
       "devDependencies": {
         "@eslint/js": "^9.15.0",
         "@stylistic/eslint-plugin": "^4.2.0",
@@ -210,6 +214,8 @@
     "lodash.merge": ["lodash.merge@4.6.2", "", {}, "sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ=="],
 
     "log-update": ["log-update@6.1.0", "", { "dependencies": { "ansi-escapes": "^7.0.0", "cli-cursor": "^5.0.0", "slice-ansi": "^7.1.0", "strip-ansi": "^7.1.0", "wrap-ansi": "^9.0.0" } }, "sha512-9ie8ItPR6tjY5uYJh8K/Zrv/RMZ5VOlOWvtZdEHYSTFKZfIBPQa9tOAEeAWhd+AnIneLJ22w5fjOYtoutpWq5w=="],
+
+    "memorable-ids": ["memorable-ids@0.2.0", "", {}, "sha512-SBtVP0K7mJH7skNxRh7DS/4XwLSa2jsFrwqW8YdJYu6GeZJVZ1V9Ok1Pi5OWPy8983l4WS4C+QIUGdm4tB68tw=="],
 
     "micromatch": ["micromatch@4.0.8", "", { "dependencies": { "braces": "^3.0.3", "picomatch": "^2.3.1" } }, "sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA=="],
 
