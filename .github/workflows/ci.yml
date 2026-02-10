@@ -44,12 +44,6 @@ jobs:
       - name: Run tests
         run: bun test
 
-      - name: Run unit tests
-        run: bun run test:unit
-
-      - name: Run integration tests
-        run: bun run test:integration
-
   build:
     name: Build Check
     runs-on: ubuntu-latest
