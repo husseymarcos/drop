@@ -1,0 +1,3 @@
+bunx @biomejs/biome format --write .
+bunx @biomejs/biome lint .
+git add -A
