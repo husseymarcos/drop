@@ -1,4 +1,5 @@
 import { DropCli } from './src/cli/cli.ts';
 
 const cli = new DropCli();
-await cli.run(process.argv.slice(2));
+const args = process.argv.slice(2);
+await cli.run(args);

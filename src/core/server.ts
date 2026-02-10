@@ -1,10 +1,11 @@
+import { networkInterfaces } from 'node:os';
 import type { ServerConfig } from '../types/config.ts';
 import type { SessionManager } from './session-manager.ts';
 
 export class DropServerError extends Error {
   constructor(
     message: string,
-    public override readonly cause?: Error
+    public override readonly cause?: Error,
   ) {
     super(message);
     this.name = 'DropServerError';
@@ -36,7 +37,8 @@ export class BunDropServer implements DropServer {
       });
 
       console.info(`Server started on ${this.getUrl()}`);
-    } catch (error) {
+    }
+    catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       throw new DropServerError(`Failed to start server on port ${this.config.port}`, err);
     }
@@ -94,7 +96,7 @@ export class BunDropServer implements DropServer {
 </html>`,
       {
         headers: { 'Content-Type': 'text/html' },
-      }
+      },
     );
   }
 
@@ -127,8 +129,6 @@ export class BunDropServer implements DropServer {
   }
 
   private getLocalIp(): string {
-    // Simple way to get local IP
-    const { networkInterfaces } = require('node:os');
     const interfaces = networkInterfaces();
 
     for (const ifaceName of Object.keys(interfaces)) {

@@ -7,7 +7,7 @@ import { SlugGenerator } from './slug-generator.ts';
 export class SessionManagerError extends Error {
   constructor(
     message: string,
-    public override readonly cause?: Error
+    public override readonly cause?: Error,
   ) {
     super(message);
     this.name = 'SessionManagerError';
@@ -48,7 +48,8 @@ export class InMemorySessionManager implements SessionManager {
       console.info(`Session created: ${slug} (expires: ${expiresAt.toISOString()})`);
 
       return session;
-    } catch (error) {
+    }
+    catch (error) {
       if (error instanceof FileLoaderError) {
         throw new SessionManagerError('Failed to create session', error);
       }

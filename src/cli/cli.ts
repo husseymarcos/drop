@@ -1,3 +1,4 @@
+import { CliError } from './error.ts';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { DropServer } from '../core/server.ts';
@@ -6,10 +7,10 @@ import type { SessionManager } from '../core/session-manager.ts';
 import { InMemorySessionManager, SessionManagerError } from '../core/session-manager.ts';
 import type { DropConfig } from '../types/config.ts';
 import type { DropSession } from '../types/session.ts';
-import { CliError, parseCliArgs, printHelp } from './args-parser.ts';
+import { parseCliArgs } from './args-parser.ts';
+import { printHelp } from './help.ts';
 
 const DEFAULT_PORT = 8080;
-
 export class DropCli {
   private sessionManager?: SessionManager;
   private server?: DropServer;
@@ -24,7 +25,8 @@ export class DropCli {
       }
 
       await this.validateAndRun(config);
-    } catch (error) {
+    }
+    catch (error) {
       if (error instanceof CliError) {
         console.error(error.message);
         console.error('\nRun with -h or --help for usage information.');
@@ -52,7 +54,8 @@ export class DropCli {
     let session: DropSession;
     try {
       session = await this.sessionManager.createSession(config);
-    } catch (error) {
+    }
+    catch (error) {
       if (error instanceof SessionManagerError) {
         throw new CliError(error.message);
       }
@@ -61,7 +64,8 @@ export class DropCli {
 
     try {
       await this.server.start();
-    } catch (error) {
+    }
+    catch (error) {
       if (error instanceof DropServerError) {
         throw new CliError(error.message);
       }

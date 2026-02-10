@@ -5,7 +5,7 @@ import type { DropSession } from '../types/session.ts';
 export class FileLoaderError extends Error {
   constructor(
     message: string,
-    public override readonly cause?: Error
+    public override readonly cause?: Error,
   ) {
     super(message);
     this.name = 'FileLoaderError';
@@ -37,7 +37,8 @@ export class InMemoryFileLoader implements FileLoader {
         isConsumed: false,
         downloadCount: 0,
       };
-    } catch (error) {
+    }
+    catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error(`Failed to load file: ${filePath}`, err.message);
       throw new FileLoaderError(`Cannot load file: ${filePath}`, err);

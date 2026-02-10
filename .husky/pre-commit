@@ -1,3 +1,2 @@
-bunx @biomejs/biome format --write .
-bunx @biomejs/biome lint .
+bunx eslint . --fix
 git add -A
