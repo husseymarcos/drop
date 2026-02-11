@@ -1,52 +1,65 @@
 # Drop
 
-**Drag, Drop & Destroy** — Servidor efímero de alto rendimiento para compartir archivos por red local.
+**Drag, Drop & Destroy** — High-performance ephemeral server for sharing files over the local network.
 
-## El problema: la fricción del "mandamelo"
+## The problem: the friction of "send it to me"
 
-Compartir un archivo pesado (video, instalador, dump de base de datos) entre dos computadoras en la misma habitación es más difícil de lo que debería:
+Sharing a large file (video, installer, database dump) between two computers in the same room is harder than it should be:
 
-- **Nube (Drive/Dropbox):** Subir a internet y volver a bajar. Desperdicio de ancho de banda y limitado por tu velocidad de subida.
-- **Mensajería (WhatsApp/Slack):** Comprime, tiene límites de tamaño y ensucia tus chats.
-- **Pendrives:** Es 2026; nadie quiere buscar cable o puerto USB.
+- **Cloud (Drive/Dropbox):** Upload to the internet and download again. Wasted bandwidth and limited by your upload speed.
+- **Messaging (WhatsApp/Slack):** Compresses files, has size limits, and clutters your chats.
+- **USB drives:** It's 2026; nobody wants to hunt for cables or USB ports.
 
-## La solución: Drop
+## The solution: Drop
 
-Drop convierte tu computadora en un nodo de transferencia instantáneo **solo en tu red local**.
+Drop turns your computer into an instant transfer node **only on your local network**.
 
-| Ventaja | Descripción |
-|--------|-------------|
-| **Velocidad LAN** | La transferencia solo está limitada por tu tarjeta de red y router (1 Gbps+). No sale a internet. |
-| **URL efímera** | Al "soltar" el archivo, Drop genera un link local (ej: `http://192.168.1.15:8080/vuelo-402`). |
-| **Autodestrucción** | Cuando el destinatario termina de descargar, el servidor cierra y los datos se borran de RAM, sin rastro. |
+| Benefit | Description |
+|---------|-------------|
+| **LAN speed** | Transfer is only limited by your network card and router (1 Gbps+). No internet traffic. |
+| **Ephemeral URL** | When you "drop" a file, Drop generates a local link (e.g. `http://192.168.1.15:8080/vuelo-402`). |
+| **Self-destruct** | When the recipient finishes downloading, the server shuts down and data is wiped from RAM, no trace left. |
 
-## Requisitos
+## Requirements
 
-- [Bun](https://bun.sh) (runtime recomendado).
+- [Bun](https://bun.sh) (recommended runtime).
 
-## Instalación
+## Installation
+
+### Homebrew (macOS, Linux)
+
+```bash
+brew tap husseymarcos/drop https://github.com/husseymarcos/drop.git
+brew install drop
+```
+
+### From source
 
 ```bash
 bun install
 ```
 
-## Uso (CLI)
+## Usage (CLI)
 
-Compartir un archivo en la red local con tiempo de expiración:
+Share a file on the local network with an expiration time:
 
 ```bash
-drop -f <archivo> -t <tiempo>
+drop -f <file> -t <time>
 ```
 
-| Flag | Descripción |
+| Flag | Description |
 |------|-------------|
-| `-f`, `--file` | Ruta del archivo a compartir. |
-| `-t`, `--time` | Tiempo hasta que expire el drop (ej: `5m`, `1h`, `300` segundos). |
+| `-f`, `--file` | Path to the file to share. |
+| `-t`, `--time` | Time until the drop expires (e.g. `5m`, `1h`, `300` seconds). |
 
-**Ejemplo:**
+**Example:**
 
 ```bash
+# With Homebrew
+drop -f ./video.mp4 -t 10m
+
+# From source
 bun run index.ts -f ./video.mp4 -t 10m
 ```
 
-El servidor arranca, genera una URL local (ej: `http://192.168.1.15:8080/abc123`) y, al expirar el tiempo o tras la descarga, se cierra y borra los datos.
+The server starts, generates a local URL (e.g. `http://192.168.1.15:8080/abc123`), and when the time expires or after the download completes, it shuts down and wipes the data.

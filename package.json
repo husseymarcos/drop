@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "bun run index.ts",
+    "compile": "bun build ./index.ts --compile --outfile=dist/drop",
     "dev": "bun run --watch index.ts",
     "test": "bun test",
     "lint": "eslint .",
