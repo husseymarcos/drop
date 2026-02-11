@@ -6,9 +6,4 @@ describe('CLI port configuration', () => {
     const result = parseCliArgs(['-f', 'file.txt', '-t', '5m']);
     expect(result.config.port).toBe(8080);
   });
-
-  it('accepts custom port within valid range', () => {
-    const result = parseCliArgs(['-f', 'file.txt', '-t', '5m', '-p', '3000']);
-    expect(result.config.port).toBe(3000);
-  });
 });

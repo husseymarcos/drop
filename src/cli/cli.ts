@@ -1,4 +1,3 @@
-import { CliError } from './error.ts';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { DropServer } from '../core/server.ts';
@@ -27,7 +26,7 @@ export class DropCli {
       await this.validateAndRun(config);
     }
     catch (error) {
-      if (error instanceof CliError) {
+      if (error instanceof Error) {
         console.error(error.message);
         console.error('\nRun with -h or --help for usage information.');
         process.exit(1);
@@ -41,7 +40,7 @@ export class DropCli {
   private async validateAndRun(config: DropConfig): Promise<void> {
     const resolvedPath = resolve(config.filePath);
     if (!existsSync(resolvedPath)) {
-      throw new CliError(`File not found: ${config.filePath}`);
+      throw new Error(`File not found: ${config.filePath}`);
     }
 
     config.filePath = resolvedPath;
@@ -54,20 +53,11 @@ export class DropCli {
     let session: DropSession;
     try {
       session = await this.sessionManager.createSession(config);
-    }
-    catch (error) {
-      if (error instanceof SessionManagerError) {
-        throw new CliError(error.message);
-      }
-      throw error;
-    }
-
-    try {
       await this.server.start();
     }
     catch (error) {
-      if (error instanceof DropServerError) {
-        throw new CliError(error.message);
+      if (error instanceof SessionManagerError || error instanceof DropServerError) {
+        throw new Error(error.message);
       }
       throw error;
     }
