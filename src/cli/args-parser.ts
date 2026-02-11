@@ -32,5 +32,6 @@ const buildProgram = (): Command =>
   new Command()
     .option('-f, --file <path>', 'Path to the file to share')
     .option('-t, --time <duration>', 'Time until the drop expires')
+    .option('-l, --logs', 'Enable verbose logging output')
     .option('-h, --help', 'Show help message')
     .exitOverride();

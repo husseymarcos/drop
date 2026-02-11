@@ -2,6 +2,7 @@ import type { DropConfig } from '../types/config';
 import type { DropSession } from '../types/session';
 import type { FileLoader } from './file-loader';
 import { FileLoaderError, InMemoryFileLoader } from './file-loader';
+import * as logger from '../utils/logger.ts';
 import { SlugGenerator } from './slug-generator';
 
 export class SessionManagerError extends Error {
@@ -39,13 +40,13 @@ export class InMemorySessionManager implements SessionManager {
       const slug = this.slugGenerator.generate();
       const expiresAt = new Date(Date.now() + config.durationMs);
 
-      console.debug(`Creating session with slug: ${slug}`);
+      logger.debug(`Creating session with slug: ${slug}`);
 
       const session = await this.fileLoader.load(config.filePath, slug, expiresAt);
 
       this.sessions.set(slug, session);
 
-      console.info(`Session created: ${slug} (expires: ${expiresAt.toISOString()})`);
+      logger.info(`Session created: ${slug} (expires: ${expiresAt.toISOString()})`);
 
       return session;
     }
@@ -81,7 +82,7 @@ export class InMemorySessionManager implements SessionManager {
     session.isConsumed = true;
     session.downloadCount++;
 
-    console.info(`Session consumed: ${slug} (downloads: ${session.downloadCount})`);
+    logger.info(`Session consumed: ${slug} (downloads: ${session.downloadCount})`);
 
     // Schedule cleanup after a short delay to allow download to complete
     setTimeout(() => {
@@ -100,7 +101,7 @@ export class InMemorySessionManager implements SessionManager {
     if (session) {
       this.sessions.delete(slug);
       this.slugGenerator.release(slug);
-      console.info(`Session deleted: ${slug}`);
+      logger.info(`Session deleted: ${slug}`);
     }
   }
 
@@ -123,7 +124,7 @@ export class InMemorySessionManager implements SessionManager {
     }
 
     if (cleaned > 0) {
-      console.debug(`Cleaned up ${cleaned} expired sessions`);
+      logger.debug(`Cleaned up ${cleaned} expired sessions`);
     }
   }
 
@@ -137,6 +138,6 @@ export class InMemorySessionManager implements SessionManager {
       this.deleteSession(slug);
     }
 
-    console.info('Session manager cleaned up');
+    logger.info('Session manager cleaned up');
   }
 }

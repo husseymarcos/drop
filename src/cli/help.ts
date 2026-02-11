@@ -9,6 +9,7 @@ Options:
   -t, --time <duration> Time until the drop expires (required)
                         Formats: 5m, 1h, 90s, or seconds (300)
   -p, --port <number>   Port to run the server on (default: 8080)
+  -l, --logs            Show internal logs
   -h, --help            Show this help message
 
 Examples:

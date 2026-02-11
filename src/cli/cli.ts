@@ -7,12 +7,16 @@ import { InMemorySessionManager, SessionManagerError } from '../core/session-man
 import type { DropConfig } from '../types/config.ts';
 import { DEFAULT_PORT } from '../types/config.ts';
 import type { DropSession } from '../types/session.ts';
+import * as logger from '../utils/logger.ts';
 import { parseCliArgs } from './args-parser.ts';
 export class DropCli {
   private sessionManager?: SessionManager;
   private server?: DropServer;
 
   async run(args: string[]): Promise<void> {
+    const logsEnabled = args.includes('-l') || args.includes('--logs');
+    logger.setLogLevel(logsEnabled ? 'info' : 'silent');
+
     try {
       const config = parseCliArgs(args);
       await this.validateAndRun(config);
@@ -71,7 +75,7 @@ export class DropCli {
 
   private setupShutdownHandlers(): void {
     const shutdown = async (signal: string) => {
-      console.info(`Received ${signal}, shutting down...`);
+      logger.info(`Received ${signal}, shutting down...`);
       await this.shutdown();
       process.exit(0);
     };
@@ -93,7 +97,7 @@ export class DropCli {
     if (this.sessionManager) {
       this.sessionManager.cleanup();
     }
-    console.info('Goodbye!');
+    logger.info('Goodbye!');
   }
 
   private formatBytes(bytes: number): string {

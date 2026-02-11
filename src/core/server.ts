@@ -1,5 +1,6 @@
 import { networkInterfaces } from 'node:os';
 import type { ServerConfig } from '../types/config.ts';
+import * as logger from '../utils/logger.ts';
 import type { SessionManager } from './session-manager.ts';
 
 export class DropServerError extends Error {
@@ -36,7 +37,7 @@ export class BunDropServer implements DropServer {
         fetch: this.handleRequest.bind(this),
       });
 
-      console.info(`Server started on ${this.getUrl()}`);
+      logger.info(`Server started on ${this.getUrl()}`);
     }
     catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -47,7 +48,7 @@ export class BunDropServer implements DropServer {
   async stop(): Promise<void> {
     if (this.server) {
       this.server.stop();
-      console.info('Server stopped');
+      logger.info('Server stopped');
     }
   }
 
@@ -60,7 +61,7 @@ export class BunDropServer implements DropServer {
     const url = new URL(request.url);
     const slug = url.pathname.slice(1); // Remove leading /
 
-    console.debug(`Request: ${request.method} ${url.pathname}`);
+    logger.debug(`Request: ${request.method} ${url.pathname}`);
 
     if (request.method !== 'GET') {
       return new Response('Method not allowed', { status: 405 });
@@ -104,19 +105,19 @@ export class BunDropServer implements DropServer {
     const session = this.sessionManager.getSession(slug);
 
     if (!session) {
-      console.warn(`Session not found or expired: ${slug}`);
+      logger.warn(`Session not found or expired: ${slug}`);
       return new Response('File not found or expired', { status: 404 });
     }
 
     if (this.sessionManager.isExpired(session)) {
-      console.warn(`Session expired: ${slug}`);
+      logger.warn(`Session expired: ${slug}`);
       return new Response('File has expired', { status: 410 });
     }
 
     // Mark session as consumed
     this.sessionManager.consumeSession(slug);
 
-    console.info(`Serving file: ${session.fileName} (${session.fileSize} bytes)`);
+    logger.info(`Serving file: ${session.fileName} (${session.fileSize} bytes)`);
 
     return new Response(session.data, {
       headers: {
