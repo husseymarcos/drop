@@ -1,14 +1,14 @@
 {
   "name": "drop",
   "version": "1.0.0",
-  "module": "drop.ts",
+  "module": "index.ts",
   "type": "module",
   "bin": {
-    "drop": "./drop.ts"
+    "drop": "./index.ts"
   },
   "scripts": {
-    "start": "bun run drop.ts",
-    "dev": "bun run --watch drop.ts",
+    "start": "bun run index.ts",
+    "dev": "bun run --watch index.ts",
     "test": "bun test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
