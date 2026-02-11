@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import type { DropConfig } from '../types/config.ts';
 import { getConfig } from './parse-drop-config.ts';
+import type { Arguments } from '../types/arguments.ts';
 
 export interface ParsedArgs {
   config: DropConfig;
@@ -14,11 +15,11 @@ const buildProgram = (): Command =>
     .option('-h, --help', 'Show help message')
     .exitOverride();
 
-export const parseCliArgs = (args: string[]): ParsedArgs => {
+export const parseCliArgs = (argv: string[]): ParsedArgs => {
   try {
     const program = buildProgram();
-    program.parse(args, { from: 'user' });
-    const opts = program.opts<{ file?: string; time?: string; help?: boolean }>();
+    program.parse(argv, { from: 'user' });
+    const opts = program.opts<Arguments>();
 
     if (opts.help) {
       return {
@@ -27,10 +28,12 @@ export const parseCliArgs = (args: string[]): ParsedArgs => {
       };
     }
 
-    const config = getConfig({
+    const parsedArgs: Arguments = {
       file: opts.file,
       time: opts.time,
-    });
+    };
+
+    const config: DropConfig = getConfig(parsedArgs);
 
     return {
       config,

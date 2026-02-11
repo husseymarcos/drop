@@ -1,11 +1,11 @@
 import ms, { type StringValue } from 'ms';
 import type { DropConfig } from '../types/config.ts';
-import type { CliOptions, ValidatedArgs } from './cli-args-types.ts';
+import type { Arguments, ValidatedArgs } from '../types/arguments.ts';
 
 const DEFAULT_PORT = 8080;
 
-export const getConfig = (values: CliOptions): DropConfig => {
-  const validated = validateRequiredArgs(values);
+export const getConfig = (args: Arguments): DropConfig => {
+  const validated = validateRequiredArgs(args);
   const durationMs = parseTime(validated.time);
   return {
     filePath: validated.file,
@@ -14,7 +14,7 @@ export const getConfig = (values: CliOptions): DropConfig => {
   };
 };
 
-const validateRequiredArgs = (values: CliOptions): ValidatedArgs => {
+const validateRequiredArgs = (values: Arguments): ValidatedArgs => {
   if (!values.file) {
     throw new Error('Missing required argument: -f, --file <path>');
   }
