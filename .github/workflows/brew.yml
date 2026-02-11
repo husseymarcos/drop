@@ -1,0 +1,82 @@
+name: Brew Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release & Update Formula
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Get tarball SHA256
+        id: sha256
+        run: |
+          SHA256=$(curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.tar.gz" | shasum -a 256 | awk '{ print $1 }')
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew formula
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          SHA256="${{ steps.sha256.outputs.sha256 }}"
+
+          cat > Formula/drop.rb << 'FORMULA'
+          class Drop < Formula
+            desc "Ephemeral high-performance server to share files over the local network"
+            homepage "https://github.com/husseymarcos/drop"
+            version "VERSION_PLACEHOLDER"
+            url "https://github.com/husseymarcos/drop/archive/refs/tags/v#{version}.tar.gz"
+            sha256 "SHA256_PLACEHOLDER"
+            license "MIT"
+            head "https://github.com/husseymarcos/drop.git", branch: "main"
+
+            depends_on "bun"
+
+            def install
+              system "bun", "install"
+              system "bun", "build", "./index.ts", "--compile", "--outfile", "drop"
+              bin.install "drop"
+            end
+
+            test do
+              assert_match "file", shell_output("#{bin}/drop --help 2>&1")
+            end
+          end
+          FORMULA
+
+          sed -i.bak "s/VERSION_PLACEHOLDER/$VERSION/g" Formula/drop.rb
+          sed -i.bak "s/SHA256_PLACEHOLDER/$SHA256/g" Formula/drop.rb
+          rm Formula/drop.rb.bak
+
+      - name: Commit and push formula update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/drop.rb
+          if git diff --staged --quiet; then
+            echo "No formula changes to commit"
+          else
+            git commit -m "chore: bump formula to v${{ steps.version.outputs.VERSION }}"
+            git pull origin main --rebase
+            git push origin main
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
