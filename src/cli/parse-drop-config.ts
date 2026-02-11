@@ -1,8 +1,7 @@
 import ms, { type StringValue } from 'ms';
 import type { DropConfig } from '../types/config.ts';
+import { DEFAULT_PORT } from '../types/config.ts';
 import type { Arguments, ValidatedArgs } from '../types/arguments.ts';
-
-const DEFAULT_PORT = 8080;
 
 export const getConfig = (args: Arguments): DropConfig => {
   const validated = validateRequiredArgs(args);

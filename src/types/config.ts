@@ -8,3 +8,5 @@ export interface ServerConfig {
   port: number;
   host: string;
 }
+
+export const DEFAULT_PORT = 8080;

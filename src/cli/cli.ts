@@ -5,24 +5,16 @@ import { BunDropServer, DropServerError } from '../core/server.ts';
 import type { SessionManager } from '../core/session-manager.ts';
 import { InMemorySessionManager, SessionManagerError } from '../core/session-manager.ts';
 import type { DropConfig } from '../types/config.ts';
+import { DEFAULT_PORT } from '../types/config.ts';
 import type { DropSession } from '../types/session.ts';
 import { parseCliArgs } from './args-parser.ts';
-import { printHelp } from './help.ts';
-
-const DEFAULT_PORT = 8080;
 export class DropCli {
   private sessionManager?: SessionManager;
   private server?: DropServer;
 
   async run(args: string[]): Promise<void> {
     try {
-      const { config, showHelp } = parseCliArgs(args);
-
-      if (showHelp) {
-        printHelp();
-        process.exit(0);
-      }
-
+      const config = parseCliArgs(args);
       await this.validateAndRun(config);
     }
     catch (error) {
