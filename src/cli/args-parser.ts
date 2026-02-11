@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import type { DropConfig } from '../types/config.ts';
-import { getConfig } from './parse-drop-config.ts';
+import { getConfig } from './get-config.ts';
 import type { Arguments } from '../types/arguments.ts';
 import { printHelp } from './help.ts';
 
