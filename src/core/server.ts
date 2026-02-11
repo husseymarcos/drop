@@ -61,8 +61,6 @@ export class BunDropServer implements DropServer {
     const url = new URL(request.url);
     const slug = url.pathname.slice(1); // Remove leading /
 
-    logger.debug(`Request: ${request.method} ${url.pathname}`);
-
     if (request.method !== 'GET') {
       return new Response('Method not allowed', { status: 405 });
     }
