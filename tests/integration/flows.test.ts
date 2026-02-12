@@ -79,9 +79,9 @@ describe('Session security and access control', () => {
 });
 
 describe('System prevents invalid operations', () => {
-  it('rejects incomplete CLI commands', () => {
+  it('rejects commands without file and defaults time when omitted', () => {
     expect(() => parseCliArgs(['-t', '5m'])).toThrow();
-    expect(() => parseCliArgs(['-f', 'file.txt'])).toThrow();
+    expect(parseCliArgs(['-f', 'file.txt']).durationMs).toBe(300000);
   });
 
   it('rejects invalid time specifications', () => {

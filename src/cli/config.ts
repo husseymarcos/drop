@@ -3,6 +3,8 @@ import type { DropConfig } from '../types/config.ts';
 import { DEFAULT_PORT } from '../types/config.ts';
 import type { Arguments, ValidatedArgs } from '../types/arguments.ts';
 
+const DEFAULT_DURATION = '5m';
+
 export const getConfig = (args: Arguments): DropConfig => {
   const validated = validateRequiredArgs(args);
   const durationMs = parseTime(validated.time);
@@ -17,12 +19,9 @@ const validateRequiredArgs = (values: Arguments): ValidatedArgs => {
   if (!values.file) {
     throw new Error('Missing required argument: -f, --file <path>');
   }
-  if (!values.time) {
-    throw new Error('Missing required argument: -t, --time <duration>');
-  }
   return {
     file: values.file,
-    time: values.time,
+    time: values.time ?? DEFAULT_DURATION,
   };
 };
 

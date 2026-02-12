@@ -44,13 +44,13 @@ bun install
 Share a file on the local network with an expiration time:
 
 ```bash
-drop -f <file> -t <time>
+drop -f <file> [-t <time>]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `-f`, `--file` | Path to the file to share. |
-| `-t`, `--time` | Time until the drop expires (e.g. `5m`, `1h`, `300` seconds). |
+| `-t`, `--time` | Time until the drop expires (e.g. `5m`, `1h`, `300` seconds). Defaults to `5m`. |
 
 **Example:**
 

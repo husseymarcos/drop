@@ -2,9 +2,9 @@ import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
 
 describe('CLI argument validation', () => {
-  it('requires both file and duration parameters', () => {
+  it('requires file parameter and defaults duration when omitted', () => {
     expect(() => parseCliArgs(['-t', '5m'])).toThrow(Error);
-    expect(() => parseCliArgs(['-f', 'video.mp4'])).toThrow(Error);
+    expect(parseCliArgs(['-f', 'video.mp4']).durationMs).toBe(300000);
   });
 
   it('rejects invalid duration formats', () => {

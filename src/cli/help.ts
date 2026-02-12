@@ -2,11 +2,11 @@ export const printHelp = (): void => {
   console.log(`
 Drop - Ephemeral file sharing over LAN
 
-Usage: drop -f <file> -t <time> [options]
+Usage: drop -f <file> [-t <time>] [options]
 
 Options:
   -f, --file <path>     Path to the file to share (required)
-  -t, --time <duration> Time until the drop expires (required)
+  -t, --time <duration> Time until the drop expires (default: 5m)
                         Formats: 5m, 1h, 90s, or seconds (300)
   -p, --port <number>   Port to run the server on (default: 8080)
   -l, --logs            Show internal logs
