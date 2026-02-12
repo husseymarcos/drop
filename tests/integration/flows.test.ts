@@ -17,8 +17,8 @@ describe('User creates a file sharing session', () => {
 
     for (const scenario of scenarios) {
       const result = parseCliArgs(scenario.args);
-      expect(result.config.durationMs).toBe(scenario.expected.duration);
-      expect(result.config.port).toBe(scenario.expected.port);
+      expect(result.durationMs).toBe(scenario.expected.duration);
+      expect(result.port).toBe(scenario.expected.port);
     }
   });
 });
@@ -37,7 +37,7 @@ describe('System generates unique sharing links', () => {
 });
 
 describe('Session security and access control', () => {
-  it('enforces single-download policy', async () => {
+  it('allows repeated downloads until expiration', async () => {
     const manager = new InMemorySessionManager();
 
     const config = parseCliArgs([
@@ -45,15 +45,17 @@ describe('Session security and access control', () => {
       fixtureFile,
       '-t',
       '5m',
-    ]).config;
+    ]);
     const session = await manager.createSession(config);
 
-    const consumed = manager.consumeSession(session.id);
-    expect(consumed).toBeDefined();
-    expect(consumed?.isConsumed).toBe(true);
+    const firstDownload = manager.consumeSession(session.id);
+    expect(firstDownload).toBeDefined();
+    expect(firstDownload?.downloadCount).toBe(1);
 
-    expect(manager.consumeSession(session.id)).toBeUndefined();
-    expect(manager.getSession(session.id)).toBeUndefined();
+    const secondDownload = manager.consumeSession(session.id);
+    expect(secondDownload).toBeDefined();
+    expect(secondDownload?.downloadCount).toBe(2);
+    expect(manager.getSession(session.id)).toBeDefined();
 
     manager.cleanup();
   });
@@ -66,7 +68,7 @@ describe('Session security and access control', () => {
       fixtureFile,
       '-t',
       '1s',
-    ]).config;
+    ]);
     const session = await manager.createSession(config);
 
     await new Promise((resolve) => setTimeout(resolve, 1100));

@@ -15,6 +15,7 @@ export class DropCli {
   private server?: DropServer;
   private mdnsPublisher: MdnsPublisher;
   private aliasPublished = false;
+  private shutdownInProgress = false;
 
   constructor(mdnsPublisher: MdnsPublisher = new BonjourMdnsPublisher()) {
     this.mdnsPublisher = mdnsPublisher;
@@ -76,7 +77,7 @@ export class DropCli {
     else {
       console.log(`\nURL: ${urls.lanUrl}\n`);
     }
-    console.log('Waiting for download...\n');
+    console.log('Waiting for downloads until expiration...\n');
 
     this.setupShutdownHandlers();
 
@@ -86,10 +87,21 @@ export class DropCli {
   }
 
   private setupShutdownHandlers(): void {
-    const shutdown = async (signal: string) => {
+    const shutdown = (signal: string) => {
+      if (this.shutdownInProgress) {
+        return;
+      }
+      this.shutdownInProgress = true;
       console.log(`Received ${signal}, shutting down...`);
-      await this.shutdown();
-      process.exit(0);
+      void this.shutdown()
+        .then(() => {
+          process.exit(0);
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`Error during shutdown: ${message}`);
+          process.exit(1);
+        });
     };
 
     process.on('SIGINT', () => shutdown('SIGINT'));

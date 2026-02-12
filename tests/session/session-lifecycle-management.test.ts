@@ -14,22 +14,25 @@ describe('Session lifecycle management', () => {
     expect(manager.getSession('non-existent')).toBeUndefined();
   });
 
-  it('enforces single-download policy', async () => {
+  it('allows multiple downloads while session is active', async () => {
     const config = parseCliArgs([
       '-f',
       fixtureFile,
       '-t',
       '5m',
-    ]).config;
+    ]);
 
     const session = await manager.createSession(config);
     const slug = session.id;
 
-    const consumed = manager.consumeSession(slug);
-    expect(consumed).toBeDefined();
-    expect(consumed?.isConsumed).toBe(true);
+    const firstDownload = manager.consumeSession(slug);
+    expect(firstDownload).toBeDefined();
+    expect(firstDownload?.downloadCount).toBe(1);
 
-    expect(manager.consumeSession(slug)).toBeUndefined();
-    expect(manager.getSession(slug)).toBeUndefined();
+    const secondDownload = manager.consumeSession(slug);
+    expect(secondDownload).toBeDefined();
+    expect(secondDownload?.downloadCount).toBe(2);
+
+    expect(manager.getSession(slug)).toBeDefined();
   });
 });

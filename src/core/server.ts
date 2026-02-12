@@ -131,10 +131,7 @@ export class BunDropServer implements DropServer {
       return new Response('File has expired', { status: 410 });
     }
 
-    // Mark session as consumed
     this.sessionManager.consumeSession(slug);
-
-    console.log(`Serving file: ${session.fileName} (${session.fileSize} bytes)`);
 
     return new Response(session.data, {
       headers: {

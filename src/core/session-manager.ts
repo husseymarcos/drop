@@ -64,7 +64,7 @@ export class InMemorySessionManager implements SessionManager {
       return undefined;
     }
 
-    if (this.isExpired(session) || session.isConsumed) {
+    if (this.isExpired(session)) {
       return undefined;
     }
 
@@ -78,15 +78,9 @@ export class InMemorySessionManager implements SessionManager {
       return undefined;
     }
 
-    session.isConsumed = true;
     session.downloadCount++;
 
-    console.info(`Session consumed: ${slug} (downloads: ${session.downloadCount})`);
-
-    // Schedule cleanup after a short delay to allow download to complete
-    setTimeout(() => {
-      this.deleteSession(slug);
-    }, 1000);
+    console.info(`Session download registered: ${slug} (downloads: ${session.downloadCount})`);
 
     return session;
   }
@@ -116,7 +110,7 @@ export class InMemorySessionManager implements SessionManager {
     let cleaned = 0;
 
     for (const [slug, session] of this.sessions.entries()) {
-      if (now > session.expiresAt || session.isConsumed) {
+      if (now > session.expiresAt) {
         this.deleteSession(slug);
         cleaned++;
       }
