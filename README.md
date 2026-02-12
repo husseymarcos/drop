@@ -51,6 +51,7 @@ drop -f <file> [-t <time>]
 |------|-------------|
 | `-f`, `--file` | Path to the file to share. |
 | `-t`, `--time` | Time until the drop expires (e.g. `5m`, `1h`, `300` seconds). Defaults to `5m`. |
+| `-a`, `--alias` | Publishes `alias.local` via mDNS (e.g. `john` -> `http://john.local:8080/...`) and still shows a direct LAN URL fallback. |
 
 **Example:**
 

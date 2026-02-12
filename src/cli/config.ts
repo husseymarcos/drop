@@ -12,6 +12,7 @@ export const getConfig = (args: Arguments): DropConfig => {
     filePath: validated.file,
     durationMs,
     port: DEFAULT_PORT,
+    alias: parseAlias(args.alias),
   };
 };
 
@@ -35,4 +36,20 @@ const parseTime = (timeValue: string): number => {
     );
   }
   return durationMs;
+};
+
+const parseAlias = (aliasValue?: string): string | undefined => {
+  if (!aliasValue) return undefined;
+  const trimmed = aliasValue.trim();
+  if (!trimmed) {
+    throw new Error('Alias cannot be empty');
+  }
+  const normalized = trimmed.toLowerCase().replace(/\.local$/i, '');
+  const isValidAlias = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(normalized);
+  if (!isValidAlias) {
+    throw new Error(
+      'Invalid alias format. Use letters, numbers, or hyphens (e.g. john, marcos-laptop)',
+    );
+  }
+  return normalized;
 };

@@ -16,6 +16,7 @@ export interface DropServer {
   start(): Promise<void>;
   stop(): Promise<void>;
   getUrl(): string;
+  getPort(): number;
 }
 
 export class BunDropServer implements DropServer {
@@ -29,19 +30,34 @@ export class BunDropServer implements DropServer {
   }
 
   async start(): Promise<void> {
-    try {
-      this.server = Bun.serve({
-        port: this.config.port,
-        hostname: this.config.host,
-        fetch: this.handleRequest.bind(this),
-      });
+    const initialPort = this.config.port;
+    let nextPort = initialPort;
 
-      console.log(`Server started on ${this.getUrl()}`);
+    while (nextPort <= 65535) {
+      try {
+        this.server = Bun.serve({
+          port: nextPort,
+          hostname: this.config.host,
+          fetch: this.handleRequest.bind(this),
+        });
+
+        this.config.port = this.server.port ?? nextPort;
+        console.log(`Server started on ${this.getUrl()}`);
+        return;
+      }
+      catch (error) {
+        if (this.isAddressInUseError(error)) {
+          nextPort++;
+          continue;
+        }
+        const err = error instanceof Error ? error : new Error(String(error));
+        throw new DropServerError(`Failed to start server on port ${nextPort}`, err);
+      }
     }
-    catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      throw new DropServerError(`Failed to start server on port ${this.config.port}`, err);
-    }
+
+    throw new DropServerError(
+      `Failed to start server: no available ports from ${initialPort} to 65535`,
+    );
   }
 
   async stop(): Promise<void> {
@@ -54,6 +70,10 @@ export class BunDropServer implements DropServer {
   getUrl(): string {
     const host = this.config.host === '0.0.0.0' ? this.getLocalIp() : this.config.host;
     return `http://${host}:${this.config.port}`;
+  }
+
+  getPort(): number {
+    return this.config.port;
   }
 
   private async handleRequest(request: Request): Promise<Response> {
@@ -140,5 +160,21 @@ export class BunDropServer implements DropServer {
       }
     }
     return 'localhost';
+  }
+
+  private isAddressInUseError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    if ('code' in error && error.code === 'EADDRINUSE') {
+      return true;
+    }
+
+    if ('message' in error && typeof error.message === 'string') {
+      return error.message.includes('EADDRINUSE');
+    }
+
+    return false;
   }
 }

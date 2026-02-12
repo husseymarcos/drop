@@ -2,6 +2,7 @@ export interface DropConfig {
   filePath: string;
   durationMs: number;
   port?: number;
+  alias?: string;
 }
 
 export interface ServerConfig {

@@ -8,8 +8,8 @@ Options:
   -f, --file <path>     Path to the file to share (required)
   -t, --time <duration> Time until the drop expires (default: 5m)
                         Formats: 5m, 1h, 90s, or seconds (300)
+  -a, --alias <host>    Publish <alias>.local over mDNS and show it in the URL
   -p, --port <number>   Port to run the server on (default: 8080)
-  -l, --logs            Show internal logs
   -h, --help            Show this help message
 
 Examples:

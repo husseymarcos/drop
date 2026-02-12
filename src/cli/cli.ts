@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { DropServer } from '../core/server.ts';
+import type { MdnsPublisher } from '../core/mdns.ts';
+import { BonjourMdnsPublisher, toMdnsHost } from '../core/mdns.ts';
 import { BunDropServer, DropServerError } from '../core/server.ts';
 import type { SessionManager } from '../core/session-manager.ts';
 import { InMemorySessionManager, SessionManagerError } from '../core/session-manager.ts';
@@ -11,6 +13,12 @@ import { parseCliArgs } from './args-parser.ts';
 export class DropCli {
   private sessionManager?: SessionManager;
   private server?: DropServer;
+  private mdnsPublisher: MdnsPublisher;
+  private aliasPublished = false;
+
+  constructor(mdnsPublisher: MdnsPublisher = new BonjourMdnsPublisher()) {
+    this.mdnsPublisher = mdnsPublisher;
+  }
 
   async run(args: string[]): Promise<void> {
     try {
@@ -54,12 +62,20 @@ export class DropCli {
       throw error;
     }
 
-    const url = `${this.server.getUrl()}/${session.id}`;
+    const activePort = this.server.getPort();
+    this.aliasPublished = this.publishAliasIfConfigured(config, activePort);
+    const urls = this.getShareUrls(config, activePort, session.id, this.aliasPublished);
     console.log('\n✓ Drop created successfully!\n');
     console.log(`File: ${session.fileName}`);
     console.log(`Size: ${this.formatBytes(session.fileSize)}`);
     console.log(`Expires: ${session.expiresAt.toISOString()}`);
-    console.log(`\nURL: ${url}\n`);
+    if (urls.aliasUrl) {
+      console.log(`\nAlias URL: ${urls.aliasUrl}`);
+      console.log(`LAN URL:   ${urls.lanUrl}\n`);
+    }
+    else {
+      console.log(`\nURL: ${urls.lanUrl}\n`);
+    }
     console.log('Waiting for download...\n');
 
     this.setupShutdownHandlers();
@@ -87,6 +103,7 @@ export class DropCli {
   }
 
   private async shutdown(): Promise<void> {
+    await this.mdnsPublisher.stop();
     if (this.server) {
       await this.server.stop();
     }
@@ -94,6 +111,38 @@ export class DropCli {
       this.sessionManager.cleanup();
     }
     console.log('Goodbye!');
+  }
+
+  private getShareUrls(
+    config: DropConfig,
+    port: number,
+    sessionId: string,
+    includeAlias: boolean,
+  ): { lanUrl: string; aliasUrl?: string } {
+    const lanBaseUrl = this.server?.getUrl() ?? `http://localhost:${port}`;
+    const lanUrl = `${lanBaseUrl}/${sessionId}`;
+    if (!config.alias || !includeAlias) {
+      return { lanUrl };
+    }
+    return {
+      lanUrl,
+      aliasUrl: `http://${toMdnsHost(config.alias)}:${port}/${sessionId}`,
+    };
+  }
+
+  private publishAliasIfConfigured(config: DropConfig, port: number): boolean {
+    if (!config.alias) {
+      return false;
+    }
+    try {
+      this.mdnsPublisher.publishAlias(config.alias, port);
+      return true;
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`Could not publish mDNS alias "${toMdnsHost(config.alias)}": ${message}`);
+      return false;
+    }
   }
 
   private formatBytes(bytes: number): string {

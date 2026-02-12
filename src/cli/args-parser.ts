@@ -18,6 +18,7 @@ export const parseCliArgs = (argv: string[]): DropConfig => {
     const parsedArgs: Arguments = {
       file: opts.file,
       time: opts.time,
+      alias: opts.alias,
     };
 
     return getConfig(parsedArgs);
@@ -32,5 +33,6 @@ const buildProgram = (): Command =>
   new Command()
     .option('-f, --file <path>', 'Path to the file to share')
     .option('-t, --time <duration>', 'Time until the drop expires')
+    .option('-a, --alias <hostname>', 'Alias hostname to display in the share URL')
     .option('-h, --help', 'Show help message')
     .exitOverride();
