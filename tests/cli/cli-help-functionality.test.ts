@@ -1,19 +1,28 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
 
+const originalExit = process.exit;
+const originalLog = console.log;
+
+afterEach(() => {
+  (process as unknown as { exit: typeof process.exit }).exit = originalExit;
+  console.log = originalLog;
+});
+
 describe('CLI help functionality', () => {
-  it('shows help when requested with -h flag', () => {
-    const result = parseCliArgs(['-h']);
-    expect(result.showHelp).toBe(true);
-  });
+  it.each<[string[]]>([
+    [['-h']],
+    [['--help']],
+    [['-f', 'file.txt', '-t', '5m', '-h']],
+  ])('exits after showing help', (args) => {
+    const exitCodes: number[] = [];
+    (process as unknown as { exit: typeof process.exit }).exit = ((code?: number) => {
+      exitCodes.push(code ?? 0);
+      throw new Error('TEST_EXIT');
+    }) as typeof process.exit;
+    console.log = () => {};
 
-  it('shows help when requested with --help flag', () => {
-    const result = parseCliArgs(['--help']);
-    expect(result.showHelp).toBe(true);
-  });
-
-  it('prioritizes help over other arguments', () => {
-    const result = parseCliArgs(['-f', 'file.txt', '-t', '5m', '-h']);
-    expect(result.showHelp).toBe(true);
+    expect(() => parseCliArgs(args)).toThrow('TEST_EXIT');
+    expect(exitCodes).toEqual([0]);
   });
 });
