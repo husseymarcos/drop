@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import type { DropConfig } from '../types/config.ts';
-import { getConfig } from './get-config.ts';
+import { getConfig } from './config.ts';
 import type { Arguments } from '../types/arguments.ts';
 import { printHelp } from './help.ts';
 
@@ -32,6 +32,5 @@ const buildProgram = (): Command =>
   new Command()
     .option('-f, --file <path>', 'Path to the file to share')
     .option('-t, --time <duration>', 'Time until the drop expires')
-    .option('-l, --logs', 'Enable verbose logging output')
     .option('-h, --help', 'Show help message')
     .exitOverride();

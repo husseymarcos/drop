@@ -1,6 +1,5 @@
 import { networkInterfaces } from 'node:os';
 import type { ServerConfig } from '../types/config.ts';
-import * as logger from '../utils/logger.ts';
 import type { SessionManager } from './session-manager.ts';
 
 export class DropServerError extends Error {
@@ -37,7 +36,7 @@ export class BunDropServer implements DropServer {
         fetch: this.handleRequest.bind(this),
       });
 
-      logger.info(`Server started on ${this.getUrl()}`);
+      console.log(`Server started on ${this.getUrl()}`);
     }
     catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -48,7 +47,7 @@ export class BunDropServer implements DropServer {
   async stop(): Promise<void> {
     if (this.server) {
       this.server.stop();
-      logger.info('Server stopped');
+      console.log('Server stopped');
     }
   }
 
@@ -103,19 +102,19 @@ export class BunDropServer implements DropServer {
     const session = this.sessionManager.getSession(slug);
 
     if (!session) {
-      logger.warn(`Session not found or expired: ${slug}`);
+      console.warn(`Session not found or expired: ${slug}`);
       return new Response('File not found or expired', { status: 404 });
     }
 
     if (this.sessionManager.isExpired(session)) {
-      logger.warn(`Session expired: ${slug}`);
+      console.warn(`Session expired: ${slug}`);
       return new Response('File has expired', { status: 410 });
     }
 
     // Mark session as consumed
     this.sessionManager.consumeSession(slug);
 
-    logger.info(`Serving file: ${session.fileName} (${session.fileSize} bytes)`);
+    console.log(`Serving file: ${session.fileName} (${session.fileSize} bytes)`);
 
     return new Response(session.data, {
       headers: {
