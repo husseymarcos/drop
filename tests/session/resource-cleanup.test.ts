@@ -12,7 +12,7 @@ describe('Resource cleanup', () => {
       fixtureFile,
       '-t',
       '5m',
-    ]).config;
+    ]);
 
     const sessions = await Promise.all([
       manager.createSession(config),

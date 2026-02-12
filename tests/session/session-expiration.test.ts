@@ -12,7 +12,7 @@ describe('Session expiration', () => {
       fixtureFile,
       '-t',
       '1s',
-    ]).config;
+    ]);
 
     const session = await manager.createSession(config);
 
@@ -32,7 +32,7 @@ describe('Session expiration', () => {
       fixtureFile,
       '-t',
       '1h',
-    ]).config;
+    ]);
 
     const session = await manager.createSession(config);
 
