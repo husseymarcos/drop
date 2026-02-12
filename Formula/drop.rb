@@ -1,9 +1,9 @@
 class Drop < Formula
   desc "Ephemeral high-performance server to share files over the local network"
   homepage "https://github.com/husseymarcos/drop"
-  version "0.1.1"
+  version "0.1.2"
   url "https://github.com/husseymarcos/drop/archive/refs/tags/v#{version}.tar.gz"
-  sha256 "62c63173c98cfca10c1955b0f5b58b99780478c37d6f2339dbeb4b8d0fb1c4eb"
+  sha256 "171fae8bf80bace114a8793e557d2366c494762a2c12b65bc83d886b6199ab65"
   license "MIT"
   head "https://github.com/husseymarcos/drop.git", branch: "main"
 
