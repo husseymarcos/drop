@@ -14,8 +14,8 @@ describe('Session creation through CLI', () => {
 
     for (const scenario of scenarios) {
       const result = parseCliArgs(scenario.args);
-      expect(result.config.durationMs).toBe(scenario.expected.duration);
-      expect(result.config.port).toBe(scenario.expected.port);
+      expect(result.durationMs).toBe(scenario.expected.duration);
+      expect(result.port).toBe(scenario.expected.port);
     }
   });
 });
