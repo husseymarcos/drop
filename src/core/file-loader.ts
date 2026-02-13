@@ -1,5 +1,6 @@
-import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { readFile, readdir, stat } from 'node:fs/promises';
+import { basename, join } from 'node:path';
+import JSZip from 'jszip';
 import type { DropSession } from '../types/session.ts';
 
 export class FileLoaderError extends Error {
@@ -21,9 +22,23 @@ export class InMemoryFileLoader implements FileLoader {
     console.debug(`Loading file: ${filePath}`);
 
     try {
-      const data = await readFile(filePath);
-      const fileName = basename(filePath);
-      const mimeType = this.detectMimeType(fileName);
+      const fileStats = await stat(filePath);
+
+      let data: Buffer;
+      let fileName: string;
+      let mimeType: string;
+
+      if (fileStats.isDirectory()) {
+        const archive = await this.loadDirectoryAsArchive(filePath);
+        data = archive.data;
+        fileName = archive.fileName;
+        mimeType = archive.mimeType;
+      }
+      else {
+        data = await readFile(filePath);
+        fileName = basename(filePath);
+        mimeType = this.detectMimeType(fileName);
+      }
 
       console.info(`File loaded: ${fileName} (${this.formatBytes(data.length)})`);
 
@@ -42,6 +57,40 @@ export class InMemoryFileLoader implements FileLoader {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error(`Failed to load file: ${filePath}`, err.message);
       throw new FileLoaderError(`Cannot load file: ${filePath}`, err);
+    }
+  }
+
+  private async loadDirectoryAsArchive(
+    directoryPath: string,
+  ): Promise<{ data: Buffer; fileName: string; mimeType: string }> {
+    const zip = new JSZip();
+    await this.addDirectoryToZip(zip, directoryPath, '');
+
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+    const directoryName = basename(directoryPath);
+
+    return {
+      data: buffer,
+      fileName: `${directoryName}.zip`,
+      mimeType: 'application/zip',
+    };
+  }
+
+  private async addDirectoryToZip(
+    zip: JSZip, directoryPath: string, prefix: string): Promise<void> {
+    const entries = await readdir(directoryPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = join(directoryPath, entry.name);
+      const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+      if (entry.isDirectory()) {
+        await this.addDirectoryToZip(zip, fullPath, relativePath);
+      }
+      else if (entry.isFile()) {
+        const fileData = await readFile(fullPath);
+        zip.file(relativePath, fileData);
+      }
     }
   }
 
