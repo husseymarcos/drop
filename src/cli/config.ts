@@ -11,7 +11,7 @@ export const getConfig = (args: Arguments): DropConfig => {
   return {
     filePath: validated.file,
     durationMs,
-    port: DEFAULT_PORT,
+    port: parsePort(args.port),
     alias: parseAlias(args.alias),
   };
 };
@@ -36,6 +36,17 @@ const parseTime = (timeValue: string): number => {
     );
   }
   return durationMs;
+};
+
+const parsePort = (portValue?: string): number => {
+  if (!portValue) return DEFAULT_PORT;
+  const parsed = parseInt(portValue.trim(), 10);
+  if (Number.isNaN(parsed) || parsed < 1 || parsed > 65535) {
+    throw new Error(
+      `Invalid port: "${portValue}". Use a number between 1 and 65535`,
+    );
+  }
+  return parsed;
 };
 
 const parseAlias = (aliasValue?: string): string | undefined => {

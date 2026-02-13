@@ -1,6 +1,7 @@
 export interface Arguments {
   file?: string;
   time?: string;
+  port?: string;
   alias?: string;
   help?: boolean;
 }
