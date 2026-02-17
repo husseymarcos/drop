@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 import { DropCli } from './src/cli/cli.ts';
 
 const cli = new DropCli();
