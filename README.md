@@ -26,11 +26,10 @@ Drop turns your computer into an instant transfer node **only on your local netw
 
 ## Installation
 
-### Homebrew (macOS, Linux)
+### npm (recommended)
 
 ```bash
-brew tap husseymarcos/drop https://github.com/husseymarcos/drop.git
-brew install drop
+npm install -g @husseymarcos/drop
 ```
 
 ### From source
@@ -56,7 +55,7 @@ drop -f <file> [-t <time>]
 **Example:**
 
 ```bash
-# With Homebrew
+# Installed globally via npm
 drop -f ./video.mp4 -t 10m
 
 # From source
