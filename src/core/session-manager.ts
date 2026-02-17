@@ -130,7 +130,5 @@ export class InMemorySessionManager implements SessionManager {
     for (const slug of this.sessions.keys()) {
       this.deleteSession(slug);
     }
-
-    console.info('Session manager cleaned up');
   }
 }

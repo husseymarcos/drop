@@ -79,6 +79,7 @@ export class BunDropServer implements DropServer {
   private async handleRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const slug = url.pathname.slice(1); // Remove leading /
+    const shouldDownload = url.searchParams.get('download') === '1';
 
     if (request.method !== 'GET') {
       return new Response('Method not allowed', { status: 405 });
@@ -88,7 +89,7 @@ export class BunDropServer implements DropServer {
       return this.handleRootRequest();
     }
 
-    return this.handleDownloadRequest(slug);
+    return this.handleDownloadRequest(slug, shouldDownload);
   }
 
   private handleRootRequest(): Response {
@@ -118,17 +119,33 @@ export class BunDropServer implements DropServer {
     );
   }
 
-  private handleDownloadRequest(slug: string): Response {
+  private async handleDownloadRequest(slug: string, shouldDownload: boolean): Promise<Response> {
     const session = this.sessionManager.getSession(slug);
 
     if (!session) {
       console.warn(`Session not found or expired: ${slug}`);
-      return new Response('File not found or expired', { status: 404 });
+      const htmlFile = Bun.file(new URL('../views/not-found.html', import.meta.url));
+      return new Response(htmlFile, {
+        status: 404,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
     }
 
     if (this.sessionManager.isExpired(session)) {
       console.warn(`Session expired: ${slug}`);
       return new Response('File has expired', { status: 410 });
+    }
+
+    if (!shouldDownload) {
+      const templateFile = Bun.file(new URL('../views/download.html', import.meta.url));
+      const template = await templateFile.text();
+      const html = template
+        .replace(/{{FILENAME}}/g, session.fileName)
+        .replace(/{{SLUG}}/g, slug);
+
+      return new Response(html, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
     }
 
     this.sessionManager.consumeSession(slug);

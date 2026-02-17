@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Drop - Ready to download</title>
+  <style>
+    :root {
+      color-scheme: dark light;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #e0f2ff, #f9fafb);
+      color: #111827;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+      border-radius: 18px;
+      padding: 24px 26px 22px;
+      max-width: 460px;
+      width: 100%;
+      text-align: center;
+      backdrop-filter: blur(18px);
+    }
+    .emoji {
+      font-size: 40px;
+      margin-bottom: 6px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0 0 4px;
+    }
+    .filename {
+      margin-top: 8px;
+      font-weight: 500;
+      font-size: 15px;
+      color: #111827;
+      word-break: break-all;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 16px;
+      padding: 9px 18px;
+      border-radius: 999px;
+      border: none;
+      background: #111827;
+      color: #f9fafb;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+    }
+    .button:active {
+      transform: translateY(1px);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35);
+    }
+    .hint {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <main class="card" aria-labelledby="drop-download-title">
+    <div class="emoji" aria-hidden="true">📦</div>
+    <h1 id="drop-download-title">Your drop is ready</h1>
+    <p class="filename">{{FILENAME}}</p>
+    <a class="button" href="/{{SLUG}}?download=1">
+      <span>Download file</span>
+    </a>
+    <p class="hint">This link works once. After the download, the drop will disappear.</p>
+  </main>
+</body>
+</html>
