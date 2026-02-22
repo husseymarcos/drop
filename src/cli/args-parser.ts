@@ -1,21 +1,21 @@
 import { Command } from 'commander';
 import type { DropConfig } from '../types/config.ts';
 import { getConfig } from './config.ts';
-import type { Arguments } from '../types/arguments.ts';
+import type { CliArgs } from '../types/arguments.ts';
 import { printHelp } from './help.ts';
 
 export const parseCliArgs = (argv: string[]): DropConfig => {
   try {
     const program = buildProgram();
     program.parse(argv, { from: 'user' });
-    const opts = program.opts<Arguments>();
+    const opts = program.opts<CliArgs>();
 
     if (opts.help) {
       printHelp();
       process.exit(0);
     }
 
-    const parsedArgs: Arguments = {
+    const parsedArgs: CliArgs = {
       file: opts.file,
       time: opts.time,
       port: opts.port,

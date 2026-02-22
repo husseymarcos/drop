@@ -78,49 +78,36 @@ export class BunDropServer implements DropServer {
 
   private async handleRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const slug = url.pathname.slice(1); // Remove leading /
+    const pathname = url.pathname;
     const shouldDownload = url.searchParams.get('download') === '1';
 
     if (request.method !== 'GET') {
       return new Response('Method not allowed', { status: 405 });
     }
 
+    if (pathname === '/_/common.css') {
+      const cssFile = Bun.file(new URL('../views/common.css', import.meta.url));
+      return new Response(cssFile, {
+        headers: { 'Content-Type': 'text/css; charset=utf-8' },
+      });
+    }
+
+    const slug = pathname.slice(1);
     if (!slug) {
       if (this.config.serveAtRoot && this.sessionManager.getSession('')) {
         return this.handleDownloadRequest('', shouldDownload);
       }
-      return this.handleRootRequest();
+      return await this.handleRootRequest();
     }
 
     return this.handleDownloadRequest(slug, shouldDownload);
   }
 
-  private handleRootRequest(): Response {
-    return new Response(
-      `<!DOCTYPE html>
-<html>
-<head>
-  <title>Drop - File Sharing</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111827' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2L3 7v10l9 5 9-5V7l-9-5z'/><path d='M12 22V12'/><path d='M3 7l9 5 9-5'/><path d='M12 12l9-5'/><path d='M12 12L3 7'/></svg>" type="image/svg+xml" />
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-    h1 { color: #333; }
-    .info { background: #f5f5f5; padding: 20px; border-radius: 8px; }
-  </style>
-</head>
-<body>
-  <h1>Drop</h1>
-  <div class="info">
-    <p>This is a Drop file sharing server.</p>
-    <p>Use the CLI to share files:</p>
-    <code>drop -f &lt;file&gt; -t &lt;time&gt;</code>
-  </div>
-</body>
-</html>`,
-      {
-        headers: { 'Content-Type': 'text/html' },
-      },
-    );
+  private async handleRootRequest(): Promise<Response> {
+    const htmlFile = Bun.file(new URL('../views/root.html', import.meta.url));
+    return new Response(htmlFile, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
   }
 
   private async handleDownloadRequest(slug: string, shouldDownload: boolean): Promise<Response> {

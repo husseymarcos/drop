@@ -1,11 +1,11 @@
 import ms, { type StringValue } from 'ms';
 import type { DropConfig } from '../types/config.ts';
 import { DEFAULT_PORT } from '../types/config.ts';
-import type { Arguments, ValidatedArgs } from '../types/arguments.ts';
+import type { CliArgs } from '../types/arguments.ts';
 
 const DEFAULT_DURATION = '5m';
 
-export const getConfig = (args: Arguments): DropConfig => {
+export const getConfig = (args: CliArgs): DropConfig => {
   const validated = validateRequiredArgs(args);
   const durationMs = parseTime(validated.time);
   const alias = parseAlias(args.alias);
@@ -23,7 +23,7 @@ export const getConfig = (args: Arguments): DropConfig => {
   };
 };
 
-const validateRequiredArgs = (values: Arguments): ValidatedArgs => {
+const validateRequiredArgs = (values: CliArgs): { file: string; time: string } => {
   if (!values.file) {
     throw new Error('Missing required argument: -f, --file <path>');
   }

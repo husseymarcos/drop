@@ -3,18 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Drop - Ready to download</title>
+  <title>Drop - File Sharing</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111827' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2L3 7v10l9 5 9-5V7l-9-5z'/><path d='M12 22V12'/><path d='M3 7l9 5 9-5'/><path d='M12 12l9-5'/><path d='M12 12L3 7'/></svg>" type="image/svg+xml" />
   <link rel="stylesheet" href="/_/common.css" />
 </head>
-<body class="card-layout">
-  <main class="card" aria-labelledby="drop-download-title">
-    <div class="emoji" aria-hidden="true">📦</div>
-    <h1 id="drop-download-title">Your drop is ready</h1>
-    <p class="filename">{{FILENAME}}</p>
-    <a class="button" href="/{{SLUG}}?download=1">
-      <span>Download file</span>
-    </a>
-  </main>
+<body class="root-layout">
+  <h1>Drop</h1>
+  <div class="info">
+    <p>This is a Drop file sharing server.</p>
+    <p>Use the CLI to share files:</p>
+    <code>drop -f &lt;file&gt; -t &lt;time&gt;</code>
+  </div>
 </body>
 </html>
