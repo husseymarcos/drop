@@ -36,16 +36,16 @@ export class InMemorySessionManager implements SessionManager {
 
   async createSession(config: DropConfig): Promise<DropSession> {
     try {
-      const slug = this.slugGenerator.generate();
+      const slug = config.alias ? '' : this.slugGenerator.generate();
       const expiresAt = new Date(Date.now() + config.durationMs);
 
-      console.debug(`Creating session with slug: ${slug}`);
+      console.debug(`Creating session with slug: ${slug || '(root)'}`);
 
       const session = await this.fileLoader.load(config.filePath, slug, expiresAt);
 
       this.sessions.set(slug, session);
 
-      console.info(`Session created: ${slug} (expires: ${expiresAt.toISOString()})`);
+      console.info(`Session created: ${slug || '(root)'} (expires: ${expiresAt.toISOString()})`);
 
       return session;
     }

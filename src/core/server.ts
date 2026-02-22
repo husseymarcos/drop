@@ -86,6 +86,9 @@ export class BunDropServer implements DropServer {
     }
 
     if (!slug) {
+      if (this.config.serveAtRoot && this.sessionManager.getSession('')) {
+        return this.handleDownloadRequest('', shouldDownload);
+      }
       return this.handleRootRequest();
     }
 
@@ -98,6 +101,7 @@ export class BunDropServer implements DropServer {
 <html>
 <head>
   <title>Drop - File Sharing</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111827' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2L3 7v10l9 5 9-5V7l-9-5z'/><path d='M12 22V12'/><path d='M3 7l9 5 9-5'/><path d='M12 12l9-5'/><path d='M12 12L3 7'/></svg>" type="image/svg+xml" />
   <style>
     body { font-family: system-ui, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
     h1 { color: #333; }

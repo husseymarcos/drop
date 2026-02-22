@@ -10,6 +10,7 @@ import type { DropConfig } from '../types/config.ts';
 import { DEFAULT_PORT } from '../types/config.ts';
 import type { DropSession } from '../types/session.ts';
 import { parseCliArgs } from './args-parser.ts';
+import { buildShareUrls } from './share-urls.ts';
 export class DropCli {
   private sessionManager?: SessionManager;
   private server?: DropServer;
@@ -49,7 +50,11 @@ export class DropCli {
     this.sessionManager = new InMemorySessionManager();
 
     const port = config.port || DEFAULT_PORT;
-    this.server = new BunDropServer(this.sessionManager, { port, host: '0.0.0.0' });
+    this.server = new BunDropServer(this.sessionManager, {
+      port,
+      host: '0.0.0.0',
+      serveAtRoot: !!config.alias,
+    });
 
     let session: DropSession;
     try {
@@ -131,15 +136,8 @@ export class DropCli {
     sessionId: string,
     includeAlias: boolean,
   ): { lanUrl: string; aliasUrl?: string } {
-    const lanBaseUrl = this.server?.getUrl() ?? `http://localhost:${port}`;
-    const lanUrl = `${lanBaseUrl}/${sessionId}`;
-    if (!config.alias || !includeAlias) {
-      return { lanUrl };
-    }
-    return {
-      lanUrl,
-      aliasUrl: `http://${toMdnsHost(config.alias)}:${port}/${sessionId}`,
-    };
+    const baseUrl = this.server?.getUrl() ?? `http://localhost:${port}`;
+    return buildShareUrls(config, baseUrl, sessionId, includeAlias);
   }
 
   private publishAliasIfConfigured(config: DropConfig, port: number): boolean {

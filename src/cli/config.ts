@@ -8,11 +8,18 @@ const DEFAULT_DURATION = '5m';
 export const getConfig = (args: Arguments): DropConfig => {
   const validated = validateRequiredArgs(args);
   const durationMs = parseTime(validated.time);
+  const alias = parseAlias(args.alias);
+  const port
+    = args.port !== undefined
+      ? parsePort(args.port)
+      : alias !== undefined
+        ? 80
+        : DEFAULT_PORT;
   return {
     filePath: validated.file,
     durationMs,
-    port: parsePort(args.port),
-    alias: parseAlias(args.alias),
+    port,
+    alias,
   };
 };
 

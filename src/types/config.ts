@@ -8,6 +8,7 @@ export interface DropConfig {
 export interface ServerConfig {
   port: number;
   host: string;
+  serveAtRoot?: boolean;
 }
 
 export const DEFAULT_PORT = 8080;

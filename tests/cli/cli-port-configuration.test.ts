@@ -34,4 +34,14 @@ describe('CLI port configuration', () => {
       parseCliArgs(['-f', 'file.txt', '-p', '0']),
     ).toThrow('Invalid port');
   });
+
+  it('defaults to port 80 when port not specified', () => {
+    const result = parseCliArgs(['-f', 'file.txt', '-t', '5m', '-a', 'john']);
+    expect(result.port).toBe(80);
+  });
+
+  it('uses explicit port when -p is provided', () => {
+    const result = parseCliArgs(['-f', 'file.txt', '-t', '5m', '-a', 'john', '-p', '8080']);
+    expect(result.port).toBe(8080);
+  });
 });
