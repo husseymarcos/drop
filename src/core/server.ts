@@ -69,7 +69,9 @@ export class BunDropServer implements DropServer {
 
   getUrl(): string {
     const host = this.config.host === '0.0.0.0' ? this.getLocalIp() : this.config.host;
-    return `http://${host}:${this.config.port}`;
+    const port = this.config.port;
+    const portSuffix = port === 80 ? '' : `:${port}`;
+    return `http://${host}${portSuffix}`;
   }
 
   getPort(): number {

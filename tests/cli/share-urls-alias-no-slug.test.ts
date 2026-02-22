@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { buildShareUrls } from '../../src/cli/share-urls.ts';
+import { buildShareUrls } from '../../src/cli/share-urls';
 
 describe('Share URLs when alias is set (no slug)', () => {
   it('returns LAN and alias URLs without path when sessionId is empty', () => {
@@ -13,13 +13,14 @@ describe('Share URLs when alias is set (no slug)', () => {
     expect(result.aliasUrl).toBe('http://john.local:8080/');
   });
 
-  it('omits port in alias URL when port is 80', () => {
+  it('omits port in both LAN and alias URLs when port is 80', () => {
     const result = buildShareUrls(
       { alias: 'john', filePath: '/x', durationMs: 300000 },
       'http://192.168.1.1:80',
       '',
       true,
     );
+    expect(result.lanUrl).toBe('http://192.168.1.1/');
     expect(result.aliasUrl).toBe('http://john.local/');
   });
 
