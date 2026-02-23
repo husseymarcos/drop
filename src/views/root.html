@@ -15,7 +15,14 @@
         <h1>Drop</h1>
         <p class="hint">Arrastra un archivo aquí o haz clic para elegirlo.</p>
         <form id="drop-upload-form">
-          <input id="drop-file-input" type="file" name="file" hidden />
+          <input
+            id="drop-file-input"
+            type="file"
+            name="file"
+            multiple
+            webkitdirectory
+            hidden
+          />
           <button type="button" class="button" id="drop-upload-button">
             <span>Elegir archivo</span>
           </button>
@@ -83,22 +90,161 @@
         });
       });
 
-      uploadCard.addEventListener('drop', (event) => {
+      const collectFilesFromDirectoryEntry = (entry, pathPrefix = '') => {
+        return new Promise((resolve) => {
+          const files = [];
+
+          if (!entry) {
+            resolve(files);
+            return;
+          }
+
+          if (entry.isFile) {
+            entry.file((file) => {
+              const relativePath = pathPrefix ? `${pathPrefix}/${file.name}` : file.name;
+              files.push({ file, relativePath });
+              resolve(files);
+            });
+          } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            const readEntries = () => {
+              reader.readEntries(async (entries) => {
+                if (!entries || entries.length === 0) {
+                  resolve(files);
+                  return;
+                }
+
+                const promises = entries.map((child) => collectFilesFromDirectoryEntry(
+                  child,
+                  pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name,
+                ));
+                const nested = await Promise.all(promises);
+                nested.forEach((items) => files.push(...items));
+                readEntries();
+              });
+            };
+            readEntries();
+          } else {
+            resolve(files);
+          }
+        });
+      };
+
+      const uploadDirectory = async (files, directoryName) => {
+        if (!files || files.length === 0) return;
+
+        const formData = new FormData();
+
+        files.forEach(({ file, relativePath }) => {
+          const safePath = typeof relativePath === 'string' && relativePath.trim().length > 0
+            ? relativePath
+            : file.name;
+          formData.append('file', file, safePath);
+        });
+
+        if (directoryName) {
+          formData.set('directoryName', directoryName);
+        }
+
+        const response = await fetch('/_/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        if (!payload || !payload.slug) {
+          return;
+        }
+
+        addUploadedCard(payload, null, {
+          isDirectory: true,
+          displayName: directoryName,
+        });
+      };
+
+      uploadCard.addEventListener('drop', async (event) => {
         const dt = event.dataTransfer;
-        if (!dt || !dt.files || dt.files.length === 0) return;
-        const file = dt.files[0];
-        uploadFile(file);
+        if (!dt) return;
+
+        const items = dt.items;
+
+        if (items && items.length > 0) {
+          const directoryEntries = [];
+          for (let i = 0; i < items.length; i += 1) {
+            const item = items[i];
+            if (!item || item.kind !== 'file' || typeof item.webkitGetAsEntry !== 'function') {
+              continue;
+            }
+            const entry = item.webkitGetAsEntry();
+            if (entry && entry.isDirectory) {
+              directoryEntries.push(entry);
+            }
+          }
+
+          if (directoryEntries.length > 0) {
+            const allFiles = [];
+            // Collect files for the first dropped directory only, to keep the model "one drop per archive"
+            const entry = directoryEntries[0];
+            const collected = await collectFilesFromDirectoryEntry(entry);
+            allFiles.push(...collected);
+
+            if (allFiles.length > 0) {
+              const firstPath = allFiles[0].relativePath || allFiles[0].file.name;
+              const directoryName = firstPath.split('/')[0] || entry.name || 'directorio';
+              await uploadDirectory(allFiles, directoryName);
+              return;
+            }
+          }
+        }
+
+        const files = dt.files;
+        if (!files || files.length === 0) return;
+
+        const fileArray = Array.from(files);
+        for (const file of fileArray) {
+          // Para archivos "normales" (no directorios), cada uno se sube como drop independiente
+          // eslint-disable-next-line no-await-in-loop
+          await uploadFile(file);
+        }
       });
 
       uploadButton.addEventListener('click', () => {
         fileInput.click();
       });
 
-      fileInput.addEventListener('change', () => {
+      fileInput.addEventListener('change', async () => {
         const files = fileInput.files;
         if (!files || files.length === 0) return;
-        const file = files[0];
-        uploadFile(file);
+
+        const allFiles = Array.from(files);
+        const hasRelativePaths = allFiles.some(
+          (f) => typeof f.webkitRelativePath === 'string' && f.webkitRelativePath.length > 0,
+        );
+
+        if (hasRelativePaths) {
+          const normalized = allFiles.map((file) => {
+            const relativePath = file.webkitRelativePath && file.webkitRelativePath.length > 0
+              ? file.webkitRelativePath
+              : file.name;
+            return { file, relativePath };
+          });
+
+          const firstPath = normalized[0].relativePath;
+          const directoryName = firstPath.split('/')[0] || 'directorio';
+
+          await uploadDirectory(normalized, directoryName);
+        } else {
+          for (const file of allFiles) {
+            // Sube cada archivo como drop independiente
+            // eslint-disable-next-line no-await-in-loop
+            await uploadFile(file);
+          }
+        }
+
         fileInput.value = '';
       });
 
@@ -134,13 +280,25 @@
         addUploadedCard(payload, file);
       };
 
-      const addUploadedCard = (payload, file) => {
+      const addUploadedCard = (payload, file, options) => {
+        const isDirectory = options && options.isDirectory === true;
+        const displayNameOverride = options && typeof options.displayName === 'string'
+          ? options.displayName
+          : undefined;
+
         const card = document.createElement('article');
         card.className = 'card uploaded-card';
 
+        if (isDirectory) {
+          const icon = document.createElement('div');
+          icon.className = 'uploaded-card-directory-icon';
+          icon.textContent = '📁';
+          card.appendChild(icon);
+        }
+
         const title = document.createElement('h2');
         title.className = 'uploaded-card-title';
-        title.textContent = payload.fileName || file?.name || 'Archivo subido';
+        title.textContent = displayNameOverride || payload.fileName || file?.name || 'Archivo subido';
 
         const meta = document.createElement('p');
         meta.className = 'uploaded-card-meta';

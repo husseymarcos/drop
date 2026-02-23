@@ -129,23 +129,56 @@ export class BunDropServer implements DropServer {
 
   private async handleUploadRequest(request: Request): Promise<Response> {
     const formData = await request.formData();
-    const file = formData.get('file');
+    const files = formData.getAll('file').filter((value) => value instanceof File) as File[];
 
-    if (!(file instanceof File)) {
+    if (files.length === 0) {
       return new Response('Missing file', { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const data = Buffer.from(arrayBuffer);
-    const fileName = file.name || 'upload';
+    const durationMs = this.config.durationMs;
 
-    const durationMs = 5 * 60 * 1000;
+    const directoryNameField = formData.get('directoryName');
+    const directoryName = typeof directoryNameField === 'string' && directoryNameField.trim().length > 0
+      ? directoryNameField.trim()
+      : undefined;
 
-    const session = await this.sessionManager.createUploadSession(
-      fileName,
-      data,
-      durationMs,
-    );
+    let session;
+
+    if (files.length === 1 && !directoryName) {
+      const singleFile = files[0]!;
+      const arrayBuffer = await singleFile.arrayBuffer();
+      const data = Buffer.from(arrayBuffer);
+      const fileName = singleFile.name || 'upload';
+
+      session = await this.sessionManager.createUploadSession(
+        fileName,
+        data,
+        durationMs,
+      );
+    }
+    else {
+      const archiveEntries: Record<string, Uint8Array> = {};
+
+      for (const file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        archiveEntries[file.name] = new Uint8Array(arrayBuffer);
+      }
+
+      const archive = new Bun.Archive(archiveEntries);
+      const archiveBlob = await archive.blob();
+      const archiveBuffer = Buffer.from(await archiveBlob.arrayBuffer());
+
+      const inferredDirectoryName = directoryName
+        ?? (files[0]?.name?.split('/')[0] || 'directory');
+
+      const archiveFileName = `${inferredDirectoryName}.tar`;
+
+      session = await this.sessionManager.createUploadSession(
+        archiveFileName,
+        archiveBuffer,
+        durationMs,
+      );
+    }
 
     const payload = {
       slug: session.id,

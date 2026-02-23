@@ -126,6 +126,11 @@ body.root-layout {
   text-overflow: ellipsis;
 }
 
+.uploaded-card-directory-icon {
+  margin-bottom: 6px;
+  font-size: 18px;
+}
+
 .uploaded-card-meta {
   margin: 0 0 8px;
   font-size: 12px;
