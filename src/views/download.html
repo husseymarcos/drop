@@ -8,13 +8,113 @@
   <link rel="stylesheet" href="/_/common.css" />
 </head>
 <body class="card-layout">
-  <main class="card" aria-labelledby="drop-download-title">
-    <div class="emoji" aria-hidden="true">📦</div>
-    <h1 id="drop-download-title">Your drop is ready</h1>
-    <p class="filename">{{FILENAME}}</p>
-    <a class="button" href="/{{SLUG}}?download=1">
-      <span>Download file</span>
-    </a>
+  <main class="card" aria-labelledby="drop-download-title" data-expires-at="{{EXPIRES_AT}}">
+    <section data-drop-state="initial">
+      <div class="emoji" aria-hidden="true">📦</div>
+      <h1 id="drop-download-title">Your drop is ready</h1>
+      <p class="filename">{{FILENAME}}</p>
+      <a class="button" href="/{{SLUG}}?download=1" data-drop-download-button>
+        <span>Download file</span>
+      </a>
+      <p class="hint" id="drop-expiry-hint">
+        This drop expires in
+        <span id="drop-expiry-countdown">—</span>
+      </p>
+    </section>
+
+    <section data-drop-state="completed" hidden>
+      <div class="emoji" aria-hidden="true">✅</div>
+      <h1>Download completed</h1>
+      <p class="filename">{{FILENAME}}</p>
+      <p class="hint">
+        Now try it yourself: install Drop on your machine.
+      </p>
+      <div class="install-card">
+        <p class="install-title">Install with npm (recommended)</p>
+        <code>npm install -g @husseymarcos/drop</code>
+        <p class="install-title secondary">Or from source</p>
+        <code>bun install</code>
+        <p class="install-title secondary">Quick start</p>
+        <code>drop -f &lt;file&gt; -t 5m</code>
+      </div>
+    </section>
   </main>
+
+  <script>
+    (function () {
+      const root = document.querySelector('main.card');
+      if (!root) return;
+
+      const expiresAtValue = root.getAttribute('data-expires-at');
+      const countdownEl = document.getElementById('drop-expiry-countdown');
+      const hintEl = document.getElementById('drop-expiry-hint');
+
+      if (expiresAtValue && countdownEl && hintEl) {
+        const expiresAtTime = Date.parse(expiresAtValue);
+
+        if (!Number.isNaN(expiresAtTime)) {
+          const updateCountdown = () => {
+            const now = Date.now();
+            const remainingMs = expiresAtTime - now;
+
+            if (remainingMs <= 0) {
+              countdownEl.textContent = 'expired';
+              hintEl.textContent = 'This drop has expired.';
+              const button = document.querySelector('[data-drop-download-button]');
+              if (button instanceof HTMLAnchorElement) {
+                button.setAttribute('aria-disabled', 'true');
+                button.classList.add('is-disabled');
+                button.addEventListener('click', (event) => {
+                  event.preventDefault();
+                });
+              }
+              return false;
+            }
+
+            const totalSeconds = Math.floor(remainingMs / 1000);
+            const seconds = totalSeconds % 60;
+            const minutes = Math.floor((totalSeconds / 60) % 60);
+            const hours = Math.floor(totalSeconds / 3600);
+
+            const parts = [];
+            if (hours > 0) {
+              parts.push(String(hours).padStart(2, '0'));
+            }
+            parts.push(String(minutes).padStart(2, '0'));
+            parts.push(String(seconds).padStart(2, '0'));
+
+            countdownEl.textContent = parts.join(':');
+            return true;
+          };
+
+          updateCountdown();
+          const interval = setInterval(() => {
+            const shouldContinue = updateCountdown();
+            if (!shouldContinue) {
+              clearInterval(interval);
+            }
+          }, 1000);
+        }
+      }
+
+      const downloadButton = document.querySelector('[data-drop-download-button]');
+      const initialSection = document.querySelector('[data-drop-state="initial"]');
+      const completedSection = document.querySelector('[data-drop-state="completed"]');
+
+      if (downloadButton instanceof HTMLAnchorElement && initialSection && completedSection) {
+        downloadButton.addEventListener('click', (event) => {
+          event.preventDefault();
+
+          const iframe = document.createElement('iframe');
+          iframe.src = downloadButton.href;
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+
+          initialSection.setAttribute('hidden', 'true');
+          completedSection.removeAttribute('hidden');
+        });
+      }
+    }());
+  </script>
 </body>
 </html>

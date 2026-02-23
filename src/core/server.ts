@@ -134,7 +134,8 @@ export class BunDropServer implements DropServer {
       const template = await templateFile.text();
       const html = template
         .replace(/{{FILENAME}}/g, session.fileName)
-        .replace(/{{SLUG}}/g, slug);
+        .replace(/{{SLUG}}/g, slug)
+        .replace(/{{EXPIRES_AT}}/g, session.expiresAt.toISOString());
 
       return new Response(html, {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },

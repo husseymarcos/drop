@@ -96,6 +96,43 @@ body.root-layout .info {
   color: #6b7280;
 }
 
+.install-card {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  text-align: left;
+}
+
+.install-title {
+  margin: 6px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.install-title.secondary {
+  margin-top: 10px;
+}
+
+.install-card code {
+  display: block;
+  margin: 2px 0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: #111827;
+  color: #f9fafb;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.card .button.is-disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
 @media (max-width: 380px) {
   .card {
     padding: 20px 18px;
