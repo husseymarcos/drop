@@ -36,15 +36,16 @@ export class InMemorySessionManager implements SessionManager {
   }
 
   async createSession(config: DropConfig): Promise<DropSession> {
+    let slug: string | undefined;
     try {
-      const slug = config.alias ? '' : this.slugGenerator.generate();
-      const expiresAt = new Date(Date.now() + config.durationMs);
-
-      console.debug(`Creating session with slug: ${slug || '(root)'}`);
-
       if (!config.filePath) {
         throw new SessionManagerError('Missing filePath in DropConfig for createSession');
       }
+
+      slug = config.alias ? '' : this.slugGenerator.generate();
+      const expiresAt = new Date(Date.now() + config.durationMs);
+
+      console.debug(`Creating session with slug: ${slug || '(root)'}`);
 
       const session = await this.fileLoader.load(config.filePath, slug, expiresAt);
 
@@ -55,9 +56,16 @@ export class InMemorySessionManager implements SessionManager {
       return session;
     }
     catch (error) {
-      if (error instanceof FileLoaderError) {
-        throw new SessionManagerError('Failed to create session', error);
+      if (slug && slug.length > 0) {
+        this.slugGenerator.release(slug);
       }
+
+      if (error instanceof FileLoaderError || error instanceof SessionManagerError) {
+        throw error instanceof SessionManagerError
+          ? error
+          : new SessionManagerError('Failed to create session', error);
+      }
+
       throw error;
     }
   }
