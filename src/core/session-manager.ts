@@ -16,6 +16,7 @@ export class SessionManagerError extends Error {
 
 export interface SessionManager {
   createSession(config: DropConfig): Promise<DropSession>;
+  createUploadSession(fileName: string, data: Buffer, durationMs: number): Promise<DropSession>;
   getSession(slug: string): DropSession | undefined;
   consumeSession(slug: string): DropSession | undefined;
   isExpired(session: DropSession): boolean;
@@ -55,6 +56,30 @@ export class InMemorySessionManager implements SessionManager {
       }
       throw error;
     }
+  }
+
+  async createUploadSession(
+    fileName: string, data: Buffer, durationMs: number): Promise<DropSession> {
+    const slug = this.slugGenerator.generate();
+    const expiresAt = new Date(Date.now() + durationMs);
+
+    const session: DropSession = {
+      id: slug,
+      fileName,
+      fileSize: data.length,
+      mimeType: this.detectMimeType(fileName),
+      data,
+      expiresAt,
+      isConsumed: false,
+      downloadCount: 0,
+    };
+
+    this.sessions.set(slug, session);
+
+    console.info(`
+      Upload session created: ${slug} (${fileName}) expires at ${expiresAt.toISOString()}`);
+
+    return session;
   }
 
   getSession(slug: string): DropSession | undefined {
@@ -130,5 +155,27 @@ export class InMemorySessionManager implements SessionManager {
     for (const slug of this.sessions.keys()) {
       this.deleteSession(slug);
     }
+  }
+
+  private detectMimeType(fileName: string): string {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+
+    const mimeTypes: Record<string, string> = {
+      pdf: 'application/pdf',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      mp4: 'video/mp4',
+      mp3: 'audio/mpeg',
+      zip: 'application/zip',
+      json: 'application/json',
+      txt: 'text/plain',
+      html: 'text/html',
+      js: 'application/javascript',
+      ts: 'application/typescript',
+    };
+
+    return mimeTypes[ext || ''] || 'application/octet-stream';
   }
 }

@@ -81,8 +81,7 @@ describe('Session security and access control', () => {
 });
 
 describe('System prevents invalid operations', () => {
-  it('rejects commands without file and defaults time when omitted', () => {
-    expect(() => parseCliArgs(['-t', '5m'])).toThrow();
+  it('defaults time when omitted', () => {
     expect(parseCliArgs(['-f', 'file.txt']).durationMs).toBe(300000);
   });
 

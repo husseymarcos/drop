@@ -7,12 +7,199 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111827' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2L3 7v10l9 5 9-5V7l-9-5z'/><path d='M12 22V12'/><path d='M3 7l9 5 9-5'/><path d='M12 12l9-5'/><path d='M12 12L3 7'/></svg>" type="image/svg+xml" />
   <link rel="stylesheet" href="/_/common.css" />
 </head>
-<body class="root-layout">
-  <h1>Drop</h1>
-  <div class="info">
-    <p>This is a Drop file sharing server.</p>
-    <p>Use the CLI to share files:</p>
-    <code>drop -f &lt;file&gt; -t &lt;time&gt;</code>
-  </div>
+  <body class="root-layout" data-drop-root="1" data-expires-at="{{EXPIRES_AT}}">
+  <main class="root-main">
+    <section class="root-list" aria-label="Archivos subidos">
+      <article class="card upload-card" data-upload-card>
+        <div class="emoji" aria-hidden="true">📁</div>
+        <h1>Drop</h1>
+        <p class="hint">Arrastra un archivo aquí o haz clic para elegirlo.</p>
+        <form id="drop-upload-form">
+          <input id="drop-file-input" type="file" name="file" hidden />
+          <button type="button" class="button" id="drop-upload-button">
+            <span>Elegir archivo</span>
+          </button>
+        </form>
+        <p class="hint" id="drop-root-expiry-hint">
+          Tiempo restante para subir y descargar archivos:
+          <span id="drop-root-expiry-countdown">—</span>
+        </p>
+      </article>
+    </section>
+  </main>
+
+  <script src="/_/countdown.js"></script>
+  <script>
+    (function () {
+      const root = document.querySelector('[data-drop-root="1"]');
+      if (!root || !window.Drop || typeof window.Drop.startCountdown !== 'function') return;
+
+      const uploadCard = root.querySelector('[data-upload-card]');
+      const fileInput = document.getElementById('drop-file-input');
+      const uploadButton = document.getElementById('drop-upload-button');
+      const list = document.querySelector('.root-list');
+      const expiryHint = document.getElementById('drop-root-expiry-hint');
+      const expiryCountdown = document.getElementById('drop-root-expiry-countdown');
+
+      if (!uploadCard || !(fileInput instanceof HTMLInputElement) || !(uploadButton instanceof HTMLButtonElement) || !list || !expiryHint || !expiryCountdown) {
+        return;
+      }
+
+      const expiresAtAttr = root.getAttribute('data-expires-at');
+      const expiresAtTime = expiresAtAttr ? Date.parse(expiresAtAttr) : NaN;
+      const expiresAt = Number.isNaN(expiresAtTime)
+        ? Date.now() + 5 * 60 * 1000
+        : expiresAtTime;
+
+      window.Drop.startCountdown({
+        expiresAt,
+        countdownEl: expiryCountdown,
+        hintEl: expiryHint,
+        expiredHintText: 'Este servidor de subida ha expirado.',
+        onExpire: () => {
+          uploadCard.classList.add('is-disabled');
+          uploadButton.setAttribute('disabled', 'true');
+        },
+      });
+
+      const preventDefaults = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      };
+
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach((eventName) => {
+        uploadCard.addEventListener(eventName, preventDefaults);
+      });
+
+      ['dragenter', 'dragover'].forEach((eventName) => {
+        uploadCard.addEventListener(eventName, () => {
+          uploadCard.classList.add('is-drag-over');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach((eventName) => {
+        uploadCard.addEventListener(eventName, () => {
+          uploadCard.classList.remove('is-drag-over');
+        });
+      });
+
+      uploadCard.addEventListener('drop', (event) => {
+        const dt = event.dataTransfer;
+        if (!dt || !dt.files || dt.files.length === 0) return;
+        const file = dt.files[0];
+        uploadFile(file);
+      });
+
+      uploadButton.addEventListener('click', () => {
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', () => {
+        const files = fileInput.files;
+        if (!files || files.length === 0) return;
+        const file = files[0];
+        uploadFile(file);
+        fileInput.value = '';
+      });
+
+      const formatBytes = (bytes) => {
+        if (!bytes || typeof bytes !== 'number' || Number.isNaN(bytes)) {
+          return '';
+        }
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const k = 1024;
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        const value = bytes / (k ** i);
+        return `${value.toFixed(value >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
+      };
+
+      const uploadFile = async (file) => {
+        const formData = new FormData();
+        formData.set('file', file, file.name);
+
+        const response = await fetch('/_/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        if (!payload || !payload.slug) {
+          return;
+        }
+
+        addUploadedCard(payload, file);
+      };
+
+      const addUploadedCard = (payload, file) => {
+        const card = document.createElement('article');
+        card.className = 'card uploaded-card';
+
+        const title = document.createElement('h2');
+        title.className = 'uploaded-card-title';
+        title.textContent = payload.fileName || file?.name || 'Archivo subido';
+
+        const meta = document.createElement('p');
+        meta.className = 'uploaded-card-meta';
+        const sizeFromPayload = typeof payload.fileSize === 'number' ? payload.fileSize : undefined;
+        const sizeBytes = sizeFromPayload ?? (file ? file.size : undefined);
+        const sizeLabel = sizeBytes !== undefined ? formatBytes(sizeBytes) : '';
+        if (sizeLabel) {
+          meta.textContent = sizeLabel;
+        }
+
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'uploaded-card-preview';
+        const mimeType = (payload.mimeType && typeof payload.mimeType === 'string')
+          ? payload.mimeType
+          : (file && typeof file.type === 'string' ? file.type : '');
+
+        if (file && mimeType.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.alt = payload.fileName || file.name || 'Vista previa';
+          img.loading = 'lazy';
+          const objectUrl = URL.createObjectURL(file);
+          img.src = objectUrl;
+          img.addEventListener('load', () => {
+            URL.revokeObjectURL(objectUrl);
+          });
+          previewContainer.appendChild(img);
+        } else if (file && mimeType === 'application/pdf') {
+          const objectUrl = URL.createObjectURL(file);
+          const embed = document.createElement('embed');
+          embed.src = objectUrl;
+          embed.type = 'application/pdf';
+          embed.setAttribute('aria-label', payload.fileName || file.name || 'Vista previa PDF');
+          previewContainer.appendChild(embed);
+        }
+
+        const link = document.createElement('a');
+        link.href = `/${payload.slug}?download=1`;
+        link.className = 'button';
+        link.textContent = 'Descargar';
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          const iframe = document.createElement('iframe');
+          iframe.src = link.href;
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+        });
+
+        card.appendChild(title);
+        if (meta.textContent) {
+          card.appendChild(meta);
+        }
+        if (previewContainer.childNodes.length > 0) {
+          card.appendChild(previewContainer);
+        }
+        card.appendChild(link);
+
+        list.appendChild(card);
+      };
+    }());
+  </script>
 </body>
 </html>

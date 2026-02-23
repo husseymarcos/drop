@@ -83,15 +83,26 @@ export class BunDropServer implements DropServer {
     const pathname = url.pathname;
     const shouldDownload = url.searchParams.get('download') === '1';
 
-    if (request.method !== 'GET') {
-      return new Response('Method not allowed', { status: 405 });
-    }
-
-    if (pathname === '/_/common.css') {
+    if (pathname === '/_/common.css' && request.method === 'GET') {
       const cssFile = Bun.file(new URL('../views/common.css', import.meta.url));
       return new Response(cssFile, {
         headers: { 'Content-Type': 'text/css; charset=utf-8' },
       });
+    }
+
+    if (pathname === '/_/countdown.js' && request.method === 'GET') {
+      const jsFile = Bun.file(new URL('../views/countdown.js', import.meta.url));
+      return new Response(jsFile, {
+        headers: { 'Content-Type': 'application/javascript; charset=utf-8' },
+      });
+    }
+
+    if (pathname === '/_/upload' && request.method === 'POST') {
+      return this.handleUploadRequest(request);
+    }
+
+    if (request.method !== 'GET') {
+      return new Response('Method not allowed', { status: 405 });
     }
 
     const slug = pathname.slice(1);
@@ -107,8 +118,47 @@ export class BunDropServer implements DropServer {
 
   private async handleRootRequest(): Promise<Response> {
     const htmlFile = Bun.file(new URL('../views/root.html', import.meta.url));
-    return new Response(htmlFile, {
+    const template = await htmlFile.text();
+    const expiresAt = new Date(Date.now() + this.config.durationMs).toISOString();
+    const html = template.replace(/{{EXPIRES_AT}}/g, expiresAt);
+
+    return new Response(html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
+  }
+
+  private async handleUploadRequest(request: Request): Promise<Response> {
+    const formData = await request.formData();
+    const file = formData.get('file');
+
+    if (!(file instanceof File)) {
+      return new Response('Missing file', { status: 400 });
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const data = Buffer.from(arrayBuffer);
+    const fileName = file.name || 'upload';
+
+    const durationMs = 5 * 60 * 1000;
+
+    const session = await this.sessionManager.createUploadSession(
+      fileName,
+      data,
+      durationMs,
+    );
+
+    const payload = {
+      slug: session.id,
+      fileName: session.fileName,
+      expiresAt: session.expiresAt.toISOString(),
+      fileSize: session.fileSize,
+      mimeType: session.mimeType,
+    };
+
+    return new Response(JSON.stringify(payload), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+      },
     });
   }
 

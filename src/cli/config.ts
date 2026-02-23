@@ -6,8 +6,7 @@ import type { CliArgs } from '../types/arguments.ts';
 const DEFAULT_DURATION = '5m';
 
 export const getConfig = (args: CliArgs): DropConfig => {
-  const validated = validateRequiredArgs(args);
-  const durationMs = parseTime(validated.time);
+  const durationMs = parseTime(args.time ?? DEFAULT_DURATION);
   const alias = parseAlias(args.alias);
   const port
     = args.port !== undefined
@@ -16,20 +15,10 @@ export const getConfig = (args: CliArgs): DropConfig => {
         ? 80
         : DEFAULT_PORT;
   return {
-    filePath: validated.file,
+    filePath: args.file,
     durationMs,
     port,
     alias,
-  };
-};
-
-const validateRequiredArgs = (values: CliArgs): { file: string; time: string } => {
-  if (!values.file) {
-    throw new Error('Missing required argument: -f, --file <path>');
-  }
-  return {
-    file: values.file,
-    time: values.time ?? DEFAULT_DURATION,
   };
 };
 

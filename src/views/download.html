@@ -40,10 +40,11 @@
     </section>
   </main>
 
+  <script src="/_/countdown.js"></script>
   <script>
     (function () {
       const root = document.querySelector('main.card');
-      if (!root) return;
+      if (!root || !window.Drop || typeof window.Drop.startCountdown !== 'function') return;
 
       const expiresAtValue = root.getAttribute('data-expires-at');
       const countdownEl = document.getElementById('drop-expiry-countdown');
@@ -53,13 +54,12 @@
         const expiresAtTime = Date.parse(expiresAtValue);
 
         if (!Number.isNaN(expiresAtTime)) {
-          const updateCountdown = () => {
-            const now = Date.now();
-            const remainingMs = expiresAtTime - now;
-
-            if (remainingMs <= 0) {
-              countdownEl.textContent = 'expired';
-              hintEl.textContent = 'This drop has expired.';
+          window.Drop.startCountdown({
+            expiresAt: expiresAtTime,
+            countdownEl,
+            hintEl,
+            expiredHintText: 'This drop has expired.',
+            onExpire: () => {
               const button = document.querySelector('[data-drop-download-button]');
               if (button instanceof HTMLAnchorElement) {
                 button.setAttribute('aria-disabled', 'true');
@@ -68,32 +68,8 @@
                   event.preventDefault();
                 });
               }
-              return false;
-            }
-
-            const totalSeconds = Math.floor(remainingMs / 1000);
-            const seconds = totalSeconds % 60;
-            const minutes = Math.floor((totalSeconds / 60) % 60);
-            const hours = Math.floor(totalSeconds / 3600);
-
-            const parts = [];
-            if (hours > 0) {
-              parts.push(String(hours).padStart(2, '0'));
-            }
-            parts.push(String(minutes).padStart(2, '0'));
-            parts.push(String(seconds).padStart(2, '0'));
-
-            countdownEl.textContent = parts.join(':');
-            return true;
-          };
-
-          updateCountdown();
-          const interval = setInterval(() => {
-            const shouldContinue = updateCountdown();
-            if (!shouldContinue) {
-              clearInterval(interval);
-            }
-          }, 1000);
+            },
+          });
         }
       }
 

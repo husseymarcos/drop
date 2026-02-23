@@ -40,13 +40,6 @@ export class DropCli {
   }
 
   private async validateAndRun(config: DropConfig): Promise<void> {
-    const resolvedPath = resolve(config.filePath);
-    if (!existsSync(resolvedPath)) {
-      throw new Error(`File not found: ${config.filePath}`);
-    }
-
-    config.filePath = resolvedPath;
-
     this.sessionManager = new InMemorySessionManager();
 
     const port = config.port || DEFAULT_PORT;
@@ -54,35 +47,78 @@ export class DropCli {
       port,
       host: '0.0.0.0',
       serveAtRoot: !!config.alias,
+      durationMs: config.durationMs,
     });
 
-    let session: DropSession;
-    try {
-      session = await this.sessionManager.createSession(config);
-      await this.server.start();
-    }
-    catch (error) {
-      if (error instanceof SessionManagerError || error instanceof DropServerError) {
-        throw new Error(error.message);
+    if (config.filePath) {
+      const resolvedPath = resolve(config.filePath);
+      if (!existsSync(resolvedPath)) {
+        throw new Error(`File not found: ${config.filePath}`);
       }
-      throw error;
-    }
 
-    const activePort = this.server.getPort();
-    this.aliasPublished = this.publishAliasIfConfigured(config, activePort);
-    const urls = this.getShareUrls(config, activePort, session.id, this.aliasPublished);
-    console.log('\n✓ Drop created successfully!\n');
-    console.log(`File: ${session.fileName}`);
-    console.log(`Size: ${this.formatBytes(session.fileSize)}`);
-    console.log(`Expires: ${session.expiresAt.toISOString()}`);
-    if (urls.aliasUrl) {
-      console.log(`\nAlias URL: ${urls.aliasUrl}`);
-      console.log(`LAN URL:   ${urls.lanUrl}\n`);
+      config.filePath = resolvedPath;
+
+      let session: DropSession;
+      try {
+        session = await this.sessionManager.createSession(config);
+        await this.server.start();
+      }
+      catch (error) {
+        if (error instanceof SessionManagerError || error instanceof DropServerError) {
+          throw new Error(error.message);
+        }
+        throw error;
+      }
+
+      const activePort = this.server.getPort();
+      this.aliasPublished = this.publishAliasIfConfigured(config, activePort);
+      const urls = this.getShareUrls(config, activePort, session.id, this.aliasPublished);
+      console.log('\n✓ Drop created successfully!\n');
+      console.log(`File: ${session.fileName}`);
+      console.log(`Size: ${this.formatBytes(session.fileSize)}`);
+      console.log(`Expires: ${session.expiresAt.toISOString()}`);
+      if (urls.aliasUrl) {
+        console.log(`\nAlias URL: ${urls.aliasUrl}`);
+        console.log(`LAN URL:   ${urls.lanUrl}\n`);
+      }
+      else {
+        console.log(`\nURL: ${urls.lanUrl}\n`);
+      }
+      console.log('Waiting for downloads until expiration...\n');
     }
     else {
-      console.log(`\nURL: ${urls.lanUrl}\n`);
+      try {
+        await this.server.start();
+      }
+      catch (error) {
+        if (error instanceof DropServerError) {
+          throw new Error(error.message);
+        }
+        throw error;
+      }
+
+      const activePort = this.server.getPort();
+      this.aliasPublished = this.publishAliasIfConfigured(config, activePort);
+
+      const baseUrl = this.server.getUrl();
+      console.log('\n✓ Drop server ready for uploads!\n');
+
+      if (this.aliasPublished && config.alias) {
+        const urls = this.getShareUrls(config, activePort, '', true);
+        if (urls.aliasUrl) {
+          console.log(`Alias Upload UI: ${urls.aliasUrl}`);
+          console.log(`LAN Upload UI:   ${urls.lanUrl}\n`);
+        }
+        else {
+          console.log(`Upload UI: ${baseUrl}/\n`);
+        }
+      }
+      else {
+        console.log(`Upload UI: ${baseUrl}/\n`);
+      }
+
+      console.log(`Expires: in ${config.durationMs / 1000}s\n`);
     }
-    console.log('Waiting for downloads until expiration...\n');
 
     this.setupShutdownHandlers();
 
