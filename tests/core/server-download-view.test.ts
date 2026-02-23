@@ -24,6 +24,7 @@ describe('Download view', () => {
       port: 0,
       host: '127.0.0.1',
       serveAtRoot: false,
+      durationMs: config.durationMs,
     });
     await server.start();
 
@@ -45,6 +46,7 @@ describe('Download view', () => {
       port: 0,
       host: '127.0.0.1',
       serveAtRoot: false,
+      durationMs: config.durationMs,
     });
     await server.start();
 

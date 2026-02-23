@@ -24,6 +24,7 @@ describe('Server serveAtRoot (alias mode)', () => {
       port: 0,
       host: '127.0.0.1',
       serveAtRoot: true,
+      durationMs: config.durationMs,
     });
     await server.start();
 

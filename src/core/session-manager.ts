@@ -42,6 +42,10 @@ export class InMemorySessionManager implements SessionManager {
 
       console.debug(`Creating session with slug: ${slug || '(root)'}`);
 
+      if (!config.filePath) {
+        throw new SessionManagerError('Missing filePath in DropConfig for createSession');
+      }
+
       const session = await this.fileLoader.load(config.filePath, slug, expiresAt);
 
       this.sessions.set(slug, session);
