@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
-import { BunDropServer } from '../../src/core/server.ts';
+import { createDropServer } from '../../src/core/server.ts';
+import type { DropServer } from '../../src/core/server.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
 import { fixtureFile } from '../setup.ts';
 
 describe('Download view', () => {
-  let server: BunDropServer;
+  let server: DropServer;
   let manager: InMemorySessionManager;
 
   afterEach(async () => {
@@ -20,15 +21,13 @@ describe('Download view', () => {
     const config = parseCliArgs(['-f', fixtureFile, '-t', '5m']);
     const session = await manager.createSession(config);
 
-    server = new BunDropServer(manager, {
+    server = createDropServer(manager, {
       port: 0,
-      host: '127.0.0.1',
       serveAtRoot: false,
       durationMs: config.durationMs,
     });
-    await server.start();
+    const { url: baseUrl } = await server.start();
 
-    const baseUrl = server.getUrl();
     const res = await fetch(`${baseUrl}/${session.id}`);
 
     expect(res.status).toBe(200);
@@ -42,15 +41,13 @@ describe('Download view', () => {
     const config = parseCliArgs(['-f', fixtureFile, '-t', '5m']);
     const session = await manager.createSession(config);
 
-    server = new BunDropServer(manager, {
+    server = createDropServer(manager, {
       port: 0,
-      host: '127.0.0.1',
       serveAtRoot: false,
       durationMs: config.durationMs,
     });
-    await server.start();
+    const { url: baseUrl } = await server.start();
 
-    const baseUrl = server.getUrl();
     const res = await fetch(`${baseUrl}/${session.id}`);
 
     expect(res.status).toBe(200);

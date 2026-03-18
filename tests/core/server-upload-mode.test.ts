@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { BunDropServer } from '../../src/core/server.ts';
+import { createDropServer } from '../../src/core/server.ts';
+import type { DropServer } from '../../src/core/server.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
 
 describe('Root upload mode', () => {
-  let server: BunDropServer;
+  let server: DropServer;
   let manager: InMemorySessionManager;
 
   afterEach(async () => {
@@ -16,16 +17,14 @@ describe('Root upload mode', () => {
   it('renders a root view with a drag-and-drop upload card', async () => {
     manager = new InMemorySessionManager();
 
-    server = new BunDropServer(manager, {
+    server = createDropServer(manager, {
       port: 0,
-      host: '127.0.0.1',
       serveAtRoot: false,
       durationMs: 5 * 60 * 1000,
     });
 
-    await server.start();
+    const { url: baseUrl } = await server.start();
 
-    const baseUrl = server.getUrl();
     const res = await fetch(`${baseUrl}/`);
 
     expect(res.status).toBe(200);
@@ -39,16 +38,13 @@ describe('Root upload mode', () => {
   it('accepts uploads and returns a slug that can be used to access the download page', async () => {
     manager = new InMemorySessionManager();
 
-    server = new BunDropServer(manager, {
+    server = createDropServer(manager, {
       port: 0,
-      host: '127.0.0.1',
       serveAtRoot: false,
       durationMs: 5 * 60 * 1000,
     });
 
-    await server.start();
-
-    const baseUrl = server.getUrl();
+    const { url: baseUrl } = await server.start();
 
     const formData = new FormData();
     const fileContents = 'hello from upload';
@@ -77,16 +73,13 @@ describe('Root upload mode', () => {
   it('accepts directory uploads by zipping multiple files into a single downloadable archive', async () => {
     manager = new InMemorySessionManager();
 
-    server = new BunDropServer(manager, {
+    server = createDropServer(manager, {
       port: 0,
-      host: '127.0.0.1',
       serveAtRoot: false,
       durationMs: 5 * 60 * 1000,
     });
 
-    await server.start();
-
-    const baseUrl = server.getUrl();
+    const { url: baseUrl } = await server.start();
 
     const formData = new FormData();
     const dirName = 'project';
@@ -126,16 +119,13 @@ describe('Root upload mode', () => {
 
     const configuredDurationMs = 3000;
 
-    server = new BunDropServer(manager, {
+    server = createDropServer(manager, {
       port: 0,
-      host: '127.0.0.1',
       serveAtRoot: false,
       durationMs: configuredDurationMs,
     });
 
-    await server.start();
-
-    const baseUrl = server.getUrl();
+    const { url: baseUrl } = await server.start();
 
     const formData = new FormData();
     const fileContents = 'duration test';
@@ -160,8 +150,6 @@ describe('Root upload mode', () => {
 
     const actualDurationMs = session.expiresAt.getTime() - createdAtMs;
 
-    // The actual duration should be close to the configured duration,
-    // within a small tolerance to account for execution time.
     expect(actualDurationMs).toBeGreaterThanOrEqual(configuredDurationMs - 500);
     expect(actualDurationMs).toBeLessThanOrEqual(configuredDurationMs + 2000);
   });
