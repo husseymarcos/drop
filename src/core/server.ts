@@ -12,11 +12,24 @@ export class DropServerError extends Error {
   }
 }
 
+export type DropServerConfig = {
+  port?: number;
+  durationMs: number;
+  serveAtRoot?: boolean;
+};
+
 export interface DropServer {
-  start(): Promise<void>;
+  start(): Promise<{ url: string; port: number }>;
   stop(): Promise<void>;
-  getUrl(): string;
-  getPort(): number;
+}
+
+export function createDropServer(sessionManager: SessionManager, config: DropServerConfig): DropServer {
+  return new BunDropServer(sessionManager, {
+    host: '0.0.0.0',
+    port: config.port ?? 8080,
+    serveAtRoot: config.serveAtRoot ?? false,
+    durationMs: config.durationMs,
+  });
 }
 
 export class BunDropServer implements DropServer {
@@ -29,7 +42,7 @@ export class BunDropServer implements DropServer {
     this.config = config;
   }
 
-  async start(): Promise<void> {
+  async start(): Promise<{ url: string; port: number }> {
     const initialPort = this.config.port;
     let nextPort = initialPort;
 
@@ -43,7 +56,7 @@ export class BunDropServer implements DropServer {
 
         this.config.port = this.server.port ?? nextPort;
         console.log(`Server started on ${this.getUrl()}`);
-        return;
+        return { url: this.getUrl(), port: this.config.port };
       }
       catch (error) {
         if (this.isAddressInUseError(error)) {
@@ -81,46 +94,33 @@ export class BunDropServer implements DropServer {
   private async handleRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
-    const shouldDownload = url.searchParams.get('download') === '1';
+    const searchParams = url.searchParams;
 
-    if (pathname === '/_/common.css' && request.method === 'GET') {
-      const cssFile = Bun.file(new URL('../views/common.css', import.meta.url));
-      return new Response(cssFile, {
-        headers: { 'Content-Type': 'text/css; charset=utf-8' },
-      });
+    const route = routeRequest(request.method, pathname, searchParams);
+
+    switch (route.kind) {
+      case 'static-css':
+        return serveStaticAsset('css');
+      case 'static-js':
+        return serveStaticAsset('js');
+      case 'upload':
+        return this.handleUploadRequest(request);
+      case 'download':
+        return this.handleDownloadRequest(route.slug, route.download ?? false);
+      case 'root':
+        if (this.config.serveAtRoot && this.sessionManager.getSession('')) {
+          return this.handleDownloadRequest('', url.searchParams.get('download') === '1');
+        }
+        return this.handleRootRequest();
+      default:
+        return this.handleNotFoundRequest();
     }
-
-    if (pathname === '/_/countdown.js' && request.method === 'GET') {
-      const jsFile = Bun.file(new URL('../views/countdown.js', import.meta.url));
-      return new Response(jsFile, {
-        headers: { 'Content-Type': 'application/javascript; charset=utf-8' },
-      });
-    }
-
-    if (pathname === '/_/upload' && request.method === 'POST') {
-      return this.handleUploadRequest(request);
-    }
-
-    if (request.method !== 'GET') {
-      return new Response('Method not allowed', { status: 405 });
-    }
-
-    const slug = pathname.slice(1);
-    if (!slug) {
-      if (this.config.serveAtRoot && this.sessionManager.getSession('')) {
-        return this.handleDownloadRequest('', shouldDownload);
-      }
-      return await this.handleRootRequest();
-    }
-
-    return this.handleDownloadRequest(slug, shouldDownload);
   }
 
   private async handleRootRequest(): Promise<Response> {
-    const htmlFile = Bun.file(new URL('../views/root.html', import.meta.url));
-    const template = await htmlFile.text();
-    const expiresAt = new Date(Date.now() + this.config.durationMs).toISOString();
-    const html = template.replace(/{{EXPIRES_AT}}/g, expiresAt);
+    const html = await renderTemplate('root', {
+      expiresAt: new Date(Date.now() + this.config.durationMs).toISOString(),
+    });
 
     return new Response(html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -145,39 +145,12 @@ export class BunDropServer implements DropServer {
     let session;
 
     if (files.length === 1 && !directoryName) {
-      const singleFile = files[0]!;
-      const arrayBuffer = await singleFile.arrayBuffer();
-      const data = Buffer.from(arrayBuffer);
-      const fileName = singleFile.name || 'upload';
-
-      session = await this.sessionManager.createUploadSession(
-        fileName,
-        data,
-        durationMs,
-      );
+      const result = await handleUploadSingle(files[0]!, this.sessionManager, durationMs);
+      session = result.session;
     }
     else {
-      const archiveEntries: Record<string, Uint8Array> = {};
-
-      for (const file of files) {
-        const arrayBuffer = await file.arrayBuffer();
-        archiveEntries[file.name] = new Uint8Array(arrayBuffer);
-      }
-
-      const archive = new Bun.Archive(archiveEntries);
-      const archiveBlob = await archive.blob();
-      const archiveBuffer = Buffer.from(await archiveBlob.arrayBuffer());
-
-      const inferredDirectoryName = directoryName
-        ?? (files[0]?.name?.split('/')[0] || 'directory');
-
-      const archiveFileName = `${inferredDirectoryName}.tar`;
-
-      session = await this.sessionManager.createUploadSession(
-        archiveFileName,
-        archiveBuffer,
-        durationMs,
-      );
+      const result = await handleUploadMultiple(files, directoryName, this.sessionManager, durationMs);
+      session = result.session;
     }
 
     const payload = {
@@ -200,8 +173,8 @@ export class BunDropServer implements DropServer {
 
     if (!session) {
       console.warn(`Session not found or expired: ${slug}`);
-      const htmlFile = Bun.file(new URL('../views/not-found.html', import.meta.url));
-      return new Response(htmlFile, {
+      const html = await renderTemplate('notFound', {});
+      return new Response(html, {
         status: 404,
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
       });
@@ -213,12 +186,11 @@ export class BunDropServer implements DropServer {
     }
 
     if (!shouldDownload) {
-      const templateFile = Bun.file(new URL('../views/download.html', import.meta.url));
-      const template = await templateFile.text();
-      const html = template
-        .replace(/{{FILENAME}}/g, session.fileName)
-        .replace(/{{SLUG}}/g, slug)
-        .replace(/{{EXPIRES_AT}}/g, session.expiresAt.toISOString());
+      const html = await renderTemplate('download', {
+        filename: session.fileName,
+        slug,
+        expiresAt: session.expiresAt.toISOString(),
+      });
 
       return new Response(html, {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -234,6 +206,14 @@ export class BunDropServer implements DropServer {
         'Content-Length': session.fileSize.toString(),
         'Cache-Control': 'no-store',
       },
+    });
+  }
+
+  private async handleNotFoundRequest(): Promise<Response> {
+    const html = await renderTemplate('notFound', {});
+    return new Response(html, {
+      status: 404,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 
@@ -268,4 +248,133 @@ export class BunDropServer implements DropServer {
 
     return false;
   }
+}
+
+export type Route =
+  | { kind: 'static-css' }
+  | { kind: 'static-js' }
+  | { kind: 'upload' }
+  | { kind: 'download'; slug: string; download: boolean }
+  | { kind: 'root'; isDownload: boolean }
+  | { kind: 'notFound' };
+
+export function routeRequest(
+  method: string,
+  pathname: string,
+  searchParams: URLSearchParams,
+): Route {
+  if (pathname === '/_/common.css' && method === 'GET') {
+    return { kind: 'static-css' };
+  }
+
+  if (pathname === '/_/countdown.js' && method === 'GET') {
+    return { kind: 'static-js' };
+  }
+
+  if (pathname === '/_/upload' && method === 'POST') {
+    return { kind: 'upload' };
+  }
+
+  if (method !== 'GET') {
+    return { kind: 'notFound' };
+  }
+
+  const slug = pathname.slice(1);
+  if (!slug) {
+    return { kind: 'root', isDownload: false };
+  }
+
+  return {
+    kind: 'download',
+    slug,
+    download: searchParams.get('download') === '1',
+  };
+}
+
+async function serveStaticAsset(type: 'css' | 'js'): Promise<Response> {
+  const path = type === 'css' ? '../views/common.css' : '../views/countdown.js';
+  const contentType = type === 'css' ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
+  const file = Bun.file(new URL(path, import.meta.url));
+  return new Response(file, {
+    headers: { 'Content-Type': contentType },
+  });
+}
+
+export type TemplateName = 'root' | 'download' | 'notFound';
+
+export type TemplateContext = {
+  filename?: string;
+  slug?: string;
+  expiresAt?: string;
+};
+
+export async function renderTemplate(name: TemplateName, context: TemplateContext): Promise<string> {
+  const pathMap: Record<TemplateName, string> = {
+    root: '../views/root.html',
+    download: '../views/download.html',
+    notFound: '../views/not-found.html',
+  };
+
+  const htmlFile = Bun.file(new URL(pathMap[name], import.meta.url));
+  const template = await htmlFile.text();
+
+  let result = template;
+  result = result.replace(/{{FILENAME}}/g, context.filename ?? '');
+  result = result.replace(/{{SLUG}}/g, context.slug ?? '');
+  result = result.replace(/{{EXPIRES_AT}}/g, context.expiresAt ?? '');
+
+  return result;
+}
+
+export interface UploadResult {
+  session: Awaited<ReturnType<SessionManager['createUploadSession']>>;
+}
+
+export async function handleUploadSingle(
+  file: File,
+  sessionManager: SessionManager,
+  durationMs: number,
+): Promise<UploadResult> {
+  const arrayBuffer = await file.arrayBuffer();
+  const data = Buffer.from(arrayBuffer);
+  const fileName = file.name || 'upload';
+
+  const session = await sessionManager.createUploadSession(
+    fileName,
+    data,
+    durationMs,
+  );
+
+  return { session };
+}
+
+export async function handleUploadMultiple(
+  files: File[],
+  directoryName: string | undefined,
+  sessionManager: SessionManager,
+  durationMs: number,
+): Promise<UploadResult> {
+  const archiveEntries: Record<string, Uint8Array> = {};
+
+  for (const file of files) {
+    const arrayBuffer = await file.arrayBuffer();
+    archiveEntries[file.name] = new Uint8Array(arrayBuffer);
+  }
+
+  const archive = new Bun.Archive(archiveEntries);
+  const archiveBlob = await archive.blob();
+  const archiveBuffer = Buffer.from(await archiveBlob.arrayBuffer());
+
+  const inferredDirectoryName = directoryName
+    ?? (files[0]?.name?.split('/')[0] || 'directory');
+
+  const archiveFileName = `${inferredDirectoryName}.tar`;
+
+  const session = await sessionManager.createUploadSession(
+    archiveFileName,
+    archiveBuffer,
+    durationMs,
+  );
+
+  return { session };
 }

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import type { DropServer } from '../core/server.ts';
 import type { MdnsPublisher } from '../core/mdns.ts';
 import { BonjourMdnsPublisher, toMdnsHost } from '../core/mdns.ts';
-import { BunDropServer, DropServerError } from '../core/server.ts';
+import { createDropServer, DropServerError } from '../core/server.ts';
 import type { SessionManager } from '../core/session-manager.ts';
 import { InMemorySessionManager, SessionManagerError } from '../core/session-manager.ts';
 import type { DropConfig } from '../types/config.ts';
@@ -43,9 +43,8 @@ export class DropCli {
     this.sessionManager = new InMemorySessionManager();
 
     const port = config.port || DEFAULT_PORT;
-    this.server = new BunDropServer(this.sessionManager, {
+    this.server = createDropServer(this.sessionManager, {
       port,
-      host: '0.0.0.0',
       serveAtRoot: !!config.alias,
       durationMs: config.durationMs,
     });
@@ -59,9 +58,13 @@ export class DropCli {
       config.filePath = resolvedPath;
 
       let session: DropSession;
+      let activePort: number;
+      let baseUrl: string;
       try {
         session = await this.sessionManager.createSession(config);
-        await this.server.start();
+        const serverInfo = await this.server.start();
+        activePort = serverInfo.port;
+        baseUrl = serverInfo.url;
       }
       catch (error) {
         if (error instanceof SessionManagerError || error instanceof DropServerError) {
@@ -70,9 +73,8 @@ export class DropCli {
         throw error;
       }
 
-      const activePort = this.server.getPort();
       this.aliasPublished = this.publishAliasIfConfigured(config, activePort);
-      const urls = this.getShareUrls(config, activePort, session.id, this.aliasPublished);
+      const urls = this.getShareUrls(config, baseUrl, activePort, session.id, this.aliasPublished);
       console.log('\n✓ Drop created successfully!\n');
       console.log(`File: ${session.fileName}`);
       console.log(`Size: ${this.formatBytes(session.fileSize)}`);
@@ -87,8 +89,12 @@ export class DropCli {
       console.log('Waiting for downloads until expiration...\n');
     }
     else {
+      let activePort: number;
+      let baseUrl: string;
       try {
-        await this.server.start();
+        const serverInfo = await this.server.start();
+        activePort = serverInfo.port;
+        baseUrl = serverInfo.url;
       }
       catch (error) {
         if (error instanceof DropServerError) {
@@ -97,14 +103,11 @@ export class DropCli {
         throw error;
       }
 
-      const activePort = this.server.getPort();
       this.aliasPublished = this.publishAliasIfConfigured(config, activePort);
-
-      const baseUrl = this.server.getUrl();
       console.log('\n✓ Drop server ready for uploads!\n');
 
       if (this.aliasPublished && config.alias) {
-        const urls = this.getShareUrls(config, activePort, '', true);
+        const urls = this.getShareUrls(config, baseUrl, activePort, '', true);
         if (urls.aliasUrl) {
           console.log(`Alias Upload UI: ${urls.aliasUrl}`);
           console.log(`LAN Upload UI:   ${urls.lanUrl}\n`);
@@ -168,11 +171,11 @@ export class DropCli {
 
   private getShareUrls(
     config: DropConfig,
+    baseUrl: string,
     port: number,
     sessionId: string,
     includeAlias: boolean,
   ): { lanUrl: string; aliasUrl?: string } {
-    const baseUrl = this.server?.getUrl() ?? `http://localhost:${port}`;
     return buildShareUrls(config, baseUrl, sessionId, includeAlias);
   }
 
