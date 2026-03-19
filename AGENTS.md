@@ -57,10 +57,12 @@ The codebase follows a **modular, dependency-injected architecture** designed fo
    - Automatic cleanup of expired sessions
    - Tracks download counts
 
-4. **DropServer** (`src/core/server.ts`)
-   - HTTP server using Bun's native server
-   - Serves files under unique slugs
-   - Graceful shutdown support
+4. **DropServer** (`createDropServer` in `src/core/server.ts`)
+   - HTTP server using Bun's native server; `BunDropServer` is an internal implementation class
+   - **`router.ts`**: pure `routeRequest(method, pathname, searchParams)` → route kind
+   - **`upload-handler.ts`**: `handleUpload` / single-file and archive upload helpers
+   - **`template-renderer.ts`**: HTML templates with `{{VAR}}` substitution
+   - Serves files under unique slugs; port retry on `EADDRINUSE`; graceful shutdown
 
 ### Utility Modules
 
