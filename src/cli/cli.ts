@@ -3,7 +3,9 @@ import { resolve } from 'node:path';
 import { DropServer, createDropServer } from '../core/server.ts';
 import { BonjourMdnsPublisher, toMdnsHost } from '../core/mdns.ts';
 import type { MdnsPublisher } from '../core/mdns.ts';
-import { InMemorySessionManager } from '../core/session-manager.ts';
+import { DropCleaner } from '../core/drop-cleaner.ts';
+import { DropFactory } from '../core/drop-factory.ts';
+import { DropStore } from '../core/drop-store.ts';
 import type { DropConfig } from '../types.ts';
 import { formatBytes } from '../utils.ts';
 import { parseCliArgs } from './args-parser.ts';
@@ -31,8 +33,14 @@ export class DropCli {
   }
 
   private async validateAndRun(config: DropConfig): Promise<void> {
-    const sessionManager = new InMemorySessionManager();
-    const server = createDropServer(sessionManager, {
+    const store = new DropStore();
+    const factory = new DropFactory();
+    store.onRemove((slug) => factory.release(slug));
+
+    const cleaner = new DropCleaner(store);
+    cleaner.start();
+
+    const server = createDropServer(store, factory, {
       port: config.port,
       serveAtRoot: !!config.alias,
       durationMs: config.durationMs,
@@ -60,13 +68,14 @@ export class DropCli {
       }
       config.filePath = resolvedPath;
 
-      const session = await sessionManager.createSession(config);
-      const urls = buildShareUrls(config, baseUrl, session.id, aliasPublished);
+      const drop = await factory.fromFile(config.filePath, config.durationMs, config.alias);
+      store.add(drop.id, drop);
+      const urls = buildShareUrls(config, baseUrl, drop.id, aliasPublished);
 
       console.log('\n✓ Drop created successfully!\n');
-      console.log(`File: ${session.fileName}`);
-      console.log(`Size: ${formatBytes(session.fileSize)}`);
-      console.log(`Expires: ${session.expiresAt.toISOString()}`);
+      console.log(`File: ${drop.fileName}`);
+      console.log(`Size: ${formatBytes(drop.fileSize)}`);
+      console.log(`Expires: ${drop.expiresAt.toISOString()}`);
       if (urls.aliasUrl) {
         console.log(`\nAlias URL: ${urls.aliasUrl}`);
         console.log(`LAN URL:   ${urls.lanUrl}\n`);
@@ -96,17 +105,21 @@ export class DropCli {
       console.log(`Expires: in ${config.durationMs / 1000}s\n`);
     }
 
-    this.setupShutdownHandlers(server, sessionManager);
+    this.setupShutdownHandlers(server, store, cleaner);
     await this.waitForExpiration(config.durationMs);
-    await this.shutdown(server, sessionManager);
+    await this.shutdown(server, store, cleaner);
   }
 
-  private setupShutdownHandlers(server: DropServer, sessionManager: InMemorySessionManager): void {
+  private setupShutdownHandlers(
+    server: DropServer,
+    store: DropStore,
+    cleaner: DropCleaner,
+  ): void {
     const shutdown = (signal: string) => {
       if (this.shutdownInProgress) return;
       this.shutdownInProgress = true;
       console.log(`Received ${signal}, shutting down...`);
-      void this.shutdown(server, sessionManager)
+      void this.shutdown(server, store, cleaner)
         .then(() => process.exit(0))
         .catch((error) => {
           const message = error instanceof Error ? error.message : String(error);
@@ -125,11 +138,13 @@ export class DropCli {
 
   private async shutdown(
     server: DropServer,
-    sessionManager: InMemorySessionManager,
+    store: DropStore,
+    cleaner: DropCleaner,
   ): Promise<void> {
     await this.mdnsPublisher.stop();
+    cleaner.stop();
     await server.stop();
-    sessionManager.cleanup();
+    store.clear();
     console.log('Goodbye!');
   }
 

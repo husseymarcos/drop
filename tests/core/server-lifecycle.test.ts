@@ -1,22 +1,24 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
-import { InMemorySessionManager } from '../../src/core/session-manager.ts';
+import { DropFactory } from '../../src/core/drop-factory.ts';
+import { DropStore } from '../../src/core/drop-store.ts';
 
 describe('DropServer lifecycle', () => {
   let server: DropServer;
-  let manager: InMemorySessionManager;
+  let store: DropStore;
 
   afterEach(async () => {
     if (server) {
       await server.stop();
     }
-    manager?.cleanup();
+    store?.clear();
   });
 
   it('start() returns url and port', async () => {
-    manager = new InMemorySessionManager();
-    server = createDropServer(manager, {
+    store = new DropStore();
+    const factory = new DropFactory();
+    server = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: false,
       durationMs: 60_000,
@@ -31,8 +33,9 @@ describe('DropServer lifecycle', () => {
   });
 
   it('selects the next port when the preferred port is in use', async () => {
-    manager = new InMemorySessionManager();
-    const first = createDropServer(manager, {
+    store = new DropStore();
+    const factory = new DropFactory();
+    const first = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: false,
       durationMs: 60_000,
@@ -40,7 +43,7 @@ describe('DropServer lifecycle', () => {
     const { port: taken } = await first.start();
 
     try {
-      const second = createDropServer(manager, {
+      const second = createDropServer(store, factory, {
         port: taken,
         serveAtRoot: false,
         durationMs: 60_000,

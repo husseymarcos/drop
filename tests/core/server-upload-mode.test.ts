@@ -1,23 +1,25 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
-import { InMemorySessionManager } from '../../src/core/session-manager.ts';
+import { DropFactory } from '../../src/core/drop-factory.ts';
+import { DropStore } from '../../src/core/drop-store.ts';
 
 describe('Root upload mode', () => {
   let server: DropServer;
-  let manager: InMemorySessionManager;
+  let store: DropStore;
 
   afterEach(async () => {
     if (server) {
       await server.stop();
     }
-    manager?.cleanup();
+    store?.clear();
   });
 
   it('renders a root view with a drag-and-drop upload card', async () => {
-    manager = new InMemorySessionManager();
+    store = new DropStore();
+    const factory = new DropFactory();
 
-    server = createDropServer(manager, {
+    server = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: false,
       durationMs: 5 * 60 * 1000,
@@ -36,9 +38,10 @@ describe('Root upload mode', () => {
   });
 
   it('accepts uploads and returns a slug that can be used to access the download page', async () => {
-    manager = new InMemorySessionManager();
+    store = new DropStore();
+    const factory = new DropFactory();
 
-    server = createDropServer(manager, {
+    server = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: false,
       durationMs: 5 * 60 * 1000,
@@ -71,9 +74,10 @@ describe('Root upload mode', () => {
   });
 
   it('accepts directory uploads by zipping multiple files into a single downloadable archive', async () => {
-    manager = new InMemorySessionManager();
+    store = new DropStore();
+    const factory = new DropFactory();
 
-    server = createDropServer(manager, {
+    server = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: false,
       durationMs: 5 * 60 * 1000,
@@ -115,11 +119,12 @@ describe('Root upload mode', () => {
   });
 
   it('respects the configured durationMs for upload sessions', async () => {
-    manager = new InMemorySessionManager();
+    store = new DropStore();
+    const factory = new DropFactory();
 
     const configuredDurationMs = 3000;
 
-    server = createDropServer(manager, {
+    server = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: false,
       durationMs: configuredDurationMs,
@@ -143,12 +148,12 @@ describe('Root upload mode', () => {
 
     const payload = await uploadRes.json() as { slug: string };
 
-    const session = manager.getSession(payload.slug);
-    expect(session).toBeDefined();
+    const drop = store.find(payload.slug);
+    expect(drop).toBeDefined();
 
-    if (!session) return;
+    if (!drop) return;
 
-    const actualDurationMs = session.expiresAt.getTime() - createdAtMs;
+    const actualDurationMs = drop.expiresAt.getTime() - createdAtMs;
 
     expect(actualDurationMs).toBeGreaterThanOrEqual(configuredDurationMs - 500);
     expect(actualDurationMs).toBeLessThanOrEqual(configuredDurationMs + 2000);

@@ -1,26 +1,29 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
-import { InMemorySessionManager } from '../../src/core/session-manager.ts';
+import { DropFactory } from '../../src/core/drop-factory.ts';
+import { DropStore } from '../../src/core/drop-store.ts';
 import { fileConfig } from '../setup.ts';
 
 describe('Server serveAtRoot (alias mode)', () => {
   let server: DropServer;
-  let manager: InMemorySessionManager;
+  let store: DropStore;
 
   afterEach(async () => {
     if (server) {
       await server.stop();
     }
-    manager?.cleanup();
+    store?.clear();
   });
 
   it('serves file at GET / when serveAtRoot is true and session exists at root', async () => {
-    manager = new InMemorySessionManager();
+    store = new DropStore();
+    const factory = new DropFactory();
     const config = fileConfig('5m', '-a', 'john');
-    await manager.createSession(config);
+    const drop = await factory.fromFile(config.filePath!, config.durationMs, config.alias);
+    store.add(drop.id, drop);
 
-    server = createDropServer(manager, {
+    server = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: true,
       durationMs: config.durationMs,

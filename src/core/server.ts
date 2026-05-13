@@ -1,19 +1,20 @@
 import { networkInterfaces } from 'node:os';
-import type { ServerConfig } from '../types.ts';
-import { routeRequest } from './router.ts';
-import type { InMemorySessionManager } from './session-manager.ts';
-import { renderTemplate } from './template-renderer.ts';
-import { handleUpload } from './upload-handler.ts';
+import { DropFactory } from './drop-factory.ts';
+import { DropStore } from './drop-store.ts';
+import { RequestDispatcher } from './request-dispatcher.ts';
+import { DownloadHandler } from './handlers/download-handler.ts';
+import { NotFoundHandler } from './handlers/not-found-handler.ts';
+import { RootHandler } from './handlers/root-handler.ts';
+import { StaticHandler } from './handlers/static-handler.ts';
+import { UploadHandler } from './handlers/upload-handler.ts';
 
 export class DropServer {
   private server?: ReturnType<typeof Bun.serve>;
-  private sessionManager: InMemorySessionManager;
-  private config: ServerConfig;
 
-  constructor(sessionManager: InMemorySessionManager, config: ServerConfig) {
-    this.sessionManager = sessionManager;
-    this.config = config;
-  }
+  constructor(
+    private config: { port: number; host: string },
+    private dispatcher: RequestDispatcher,
+  ) {}
 
   async start(): Promise<{ url: string; port: number }> {
     const initialPort = this.config.port;
@@ -24,7 +25,7 @@ export class DropServer {
         this.server = Bun.serve({
           port: nextPort,
           hostname: this.config.host,
-          fetch: this.handleRequest.bind(this),
+          fetch: (req) => this.dispatcher.dispatch(req),
         });
 
         this.config.port = this.server.port ?? nextPort;
@@ -60,101 +61,6 @@ export class DropServer {
     return `http://${host}${portSuffix}`;
   }
 
-  private async handleRequest(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
-    const searchParams = url.searchParams;
-
-    const route = routeRequest(request.method, pathname, searchParams);
-
-    switch (route.kind) {
-      case 'static-css':
-        return serveStaticAsset('css');
-      case 'static-js':
-        return serveStaticAsset('js');
-      case 'upload':
-        return this.handleUploadRequest(request);
-      case 'download':
-        return this.handleDownloadRequest(route.slug, route.download ?? false);
-      case 'root':
-        if (this.config.serveAtRoot && this.sessionManager.getSession('')) {
-          return this.handleDownloadRequest('', url.searchParams.get('download') === '1');
-        }
-        return this.handleRootRequest();
-      case 'not-found':
-        return this.handleNotFoundRequest();
-    }
-  }
-
-  private async handleRootRequest(): Promise<Response> {
-    const html = await renderTemplate('root', {
-      expiresAt: new Date(Date.now() + this.config.durationMs).toISOString(),
-    });
-
-    return new Response(html, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-  }
-
-  private async handleUploadRequest(request: Request): Promise<Response> {
-    const formData = await request.formData();
-    const result = await handleUpload(formData, this.sessionManager, this.config.durationMs);
-
-    if (!result.ok) {
-      return new Response(result.body, { status: result.status });
-    }
-
-    return new Response(JSON.stringify(result.payload), {
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-      },
-    });
-  }
-
-  private async handleDownloadRequest(slug: string, shouldDownload: boolean): Promise<Response> {
-    const drop = this.sessionManager.getSession(slug);
-
-    if (!drop) {
-      console.warn(`Session not found or expired: ${slug}`);
-      const html = await renderTemplate('not-found', {});
-      return new Response(html, {
-        status: 404,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
-    }
-
-    if (!shouldDownload) {
-      const html = await renderTemplate('download', {
-        filename: drop.fileName,
-        slug,
-        expiresAt: drop.expiresAt.toISOString(),
-      });
-
-      return new Response(html, {
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
-    }
-
-    drop.consume();
-
-    return new Response(drop.data, {
-      headers: {
-        'Content-Type': drop.mimeType,
-        'Content-Disposition': `attachment; filename="${drop.fileName}"`,
-        'Content-Length': drop.fileSize.toString(),
-        'Cache-Control': 'no-store',
-      },
-    });
-  }
-
-  private async handleNotFoundRequest(): Promise<Response> {
-    const html = await renderTemplate('not-found', {});
-    return new Response(html, {
-      status: 404,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-  }
-
   private getLocalIp(): string {
     try {
       for (const iface of Object.values(networkInterfaces()).flat()) {
@@ -175,22 +81,22 @@ export class DropServer {
 }
 
 export function createDropServer(
-  sessionManager: InMemorySessionManager,
+  store: DropStore,
+  factory: DropFactory,
   config: { port?: number; durationMs: number; serveAtRoot?: boolean },
 ): DropServer {
-  return new DropServer(sessionManager, {
-    host: '0.0.0.0',
-    port: config.port ?? 8080,
-    serveAtRoot: config.serveAtRoot ?? false,
-    durationMs: config.durationMs,
-  });
-}
+  const dispatcher = new RequestDispatcher(
+    new StaticHandler(),
+    new UploadHandler(factory, store, config.durationMs),
+    new DownloadHandler(store),
+    new RootHandler(config.durationMs),
+    new NotFoundHandler(),
+    store,
+    config.serveAtRoot ?? false,
+  );
 
-async function serveStaticAsset(type: 'css' | 'js'): Promise<Response> {
-  const path = type === 'css' ? '../views/common.css' : '../views/countdown.js';
-  const contentType = type === 'css' ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
-  const file = Bun.file(new URL(path, import.meta.url));
-  return new Response(file, {
-    headers: { 'Content-Type': contentType },
-  });
+  return new DropServer(
+    { host: '0.0.0.0', port: config.port ?? 8080 },
+    dispatcher,
+  );
 }

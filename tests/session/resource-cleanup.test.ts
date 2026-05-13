@@ -1,26 +1,32 @@
 import { describe, expect, it } from 'bun:test';
-import { InMemorySessionManager } from '../../src/core/session-manager.ts';
+import { DropFactory } from '../../src/core/drop-factory.ts';
+import { DropStore } from '../../src/core/drop-store.ts';
 import { fileConfig } from '../setup.ts';
 
 describe('Resource cleanup', () => {
-  it('removes all sessions on cleanup', async () => {
-    const manager = new InMemorySessionManager();
-    const config = fileConfig();
+  it('removes all sessions on clear', async () => {
+    const store = new DropStore();
+    const factory = new DropFactory();
+    store.onRemove((slug) => factory.release(slug));
 
-    const sessions = await Promise.all([
-      manager.createSession(config),
-      manager.createSession(config),
-      manager.createSession(config),
+    const drops = await Promise.all([
+      factory.fromFile(fileConfig().filePath!, 300000),
+      factory.fromFile(fileConfig().filePath!, 300000),
+      factory.fromFile(fileConfig().filePath!, 300000),
     ]);
 
-    for (const session of sessions) {
-      expect(manager.getSession(session.id)).toBeDefined();
+    for (const drop of drops) {
+      store.add(drop.id, drop);
     }
 
-    manager.cleanup();
+    for (const drop of drops) {
+      expect(store.find(drop.id)).toBeDefined();
+    }
 
-    for (const session of sessions) {
-      expect(manager.getSession(session.id)).toBeUndefined();
+    store.clear();
+
+    for (const drop of drops) {
+      expect(store.find(drop.id)).toBeUndefined();
     }
   });
 });

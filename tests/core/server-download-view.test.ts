@@ -1,33 +1,36 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
-import { InMemorySessionManager } from '../../src/core/session-manager.ts';
+import { DropFactory } from '../../src/core/drop-factory.ts';
+import { DropStore } from '../../src/core/drop-store.ts';
 import { fileConfig } from '../setup.ts';
 
 describe('Download view', () => {
   let server: DropServer;
-  let manager: InMemorySessionManager;
+  let store: DropStore;
 
   afterEach(async () => {
     if (server) {
       await server.stop();
     }
-    manager?.cleanup();
+    store?.clear();
   });
 
   it('includes expiration metadata for countdown', async () => {
-    manager = new InMemorySessionManager();
+    store = new DropStore();
+    const factory = new DropFactory();
     const config = fileConfig();
-    const session = await manager.createSession(config);
+    const drop = await factory.fromFile(config.filePath!, config.durationMs);
+    store.add(drop.id, drop);
 
-    server = createDropServer(manager, {
+    server = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: false,
       durationMs: config.durationMs,
     });
     const { url: baseUrl } = await server.start();
 
-    const res = await fetch(`${baseUrl}/${session.id}`);
+    const res = await fetch(`${baseUrl}/${drop.id}`);
 
     expect(res.status).toBe(200);
     const body = await res.text();
@@ -36,18 +39,20 @@ describe('Download view', () => {
   });
 
   it('shows a post-download message inviting the user to try Drop', async () => {
-    manager = new InMemorySessionManager();
+    store = new DropStore();
+    const factory = new DropFactory();
     const config = fileConfig();
-    const session = await manager.createSession(config);
+    const drop = await factory.fromFile(config.filePath!, config.durationMs);
+    store.add(drop.id, drop);
 
-    server = createDropServer(manager, {
+    server = createDropServer(store, factory, {
       port: 0,
       serveAtRoot: false,
       durationMs: config.durationMs,
     });
     const { url: baseUrl } = await server.start();
 
-    const res = await fetch(`${baseUrl}/${session.id}`);
+    const res = await fetch(`${baseUrl}/${drop.id}`);
 
     expect(res.status).toBe(200);
     const body = await res.text();

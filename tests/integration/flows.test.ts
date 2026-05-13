@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser';
-import { InMemorySessionManager } from '../../src/core/session-manager';
+import { DropFactory } from '../../src/core/drop-factory';
+import { DropStore } from '../../src/core/drop-store';
 import { SlugGenerator } from '../../src/core/slug-generator';
 import { fileConfig } from '../setup';
 
@@ -35,31 +36,33 @@ describe('System generates unique sharing links', () => {
 
 describe('Session security and access control', () => {
   it('allows repeated downloads until expiration', async () => {
-    const manager = new InMemorySessionManager();
-    const session = await manager.createSession(fileConfig());
+    const store = new DropStore();
+    const factory = new DropFactory();
+    const drop = await factory.fromFile(fileConfig().filePath!, 300000);
+    store.add(drop.id, drop);
 
-    const firstDownload = manager.consumeSession(session.id);
-    expect(firstDownload).toBeDefined();
-    expect(firstDownload?.downloadCount).toBe(1);
+    drop.consume();
+    expect(drop.downloadCount).toBe(1);
 
-    const secondDownload = manager.consumeSession(session.id);
-    expect(secondDownload).toBeDefined();
-    expect(secondDownload?.downloadCount).toBe(2);
-    expect(manager.getSession(session.id)).toBeDefined();
+    drop.consume();
+    expect(drop.downloadCount).toBe(2);
+    expect(store.find(drop.id)).toBeDefined();
 
-    manager.cleanup();
+    store.clear();
   });
 
   it('automatically expires sessions after time limit', async () => {
-    const manager = new InMemorySessionManager();
-    const session = await manager.createSession(fileConfig('1s'));
+    const store = new DropStore();
+    const factory = new DropFactory();
+    const drop = await factory.fromFile(fileConfig('1s').filePath!, 1000);
+    store.add(drop.id, drop);
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
-    expect(session.isExpired).toBe(true);
-    expect(manager.getSession(session.id)).toBeUndefined();
+    expect(drop.isExpired).toBe(true);
+    expect(store.find(drop.id)).toBeUndefined();
 
-    manager.cleanup();
+    store.clear();
   });
 });
 
