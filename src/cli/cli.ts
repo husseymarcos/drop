@@ -1,21 +1,16 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { DropServer } from '../core/server.ts';
-import type { MdnsPublisher } from '../core/mdns.ts';
+import { DropServer, createDropServer } from '../core/server.ts';
 import { BonjourMdnsPublisher, toMdnsHost } from '../core/mdns.ts';
-import { createDropServer, DropServerError } from '../core/server.ts';
-import type { SessionManager } from '../core/session-manager.ts';
-import { InMemorySessionManager, SessionManagerError } from '../core/session-manager.ts';
-import type { DropConfig } from '../types/config.ts';
-import { DEFAULT_PORT } from '../types/config.ts';
-import type { DropSession } from '../types/session.ts';
+import type { MdnsPublisher } from '../core/mdns.ts';
+import { InMemorySessionManager } from '../core/session-manager.ts';
+import type { DropConfig } from '../types.ts';
+import { formatBytes } from '../utils.ts';
 import { parseCliArgs } from './args-parser.ts';
 import { buildShareUrls } from './share-urls.ts';
+
 export class DropCli {
-  private sessionManager?: SessionManager;
-  private server?: DropServer;
   private mdnsPublisher: MdnsPublisher;
-  private aliasPublished = false;
   private shutdownInProgress = false;
 
   constructor(mdnsPublisher: MdnsPublisher = new BonjourMdnsPublisher()) {
@@ -28,56 +23,49 @@ export class DropCli {
       await this.validateAndRun(config);
     }
     catch (error) {
-      if (error instanceof Error) {
-        console.error(error.message);
-        console.error('\nRun with -h or --help for usage information.');
-        process.exit(1);
-      }
-
-      console.error('Unexpected error:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(message);
+      console.error('\nRun with -h or --help for usage information.');
       process.exit(1);
     }
   }
 
   private async validateAndRun(config: DropConfig): Promise<void> {
-    this.sessionManager = new InMemorySessionManager();
-
-    const port = config.port || DEFAULT_PORT;
-    this.server = createDropServer(this.sessionManager, {
-      port,
+    const sessionManager = new InMemorySessionManager();
+    const server = createDropServer(sessionManager, {
+      port: config.port,
       serveAtRoot: !!config.alias,
       durationMs: config.durationMs,
     });
+
+    let activePort: number;
+    let baseUrl: string;
+
+    try {
+      const serverInfo = await server.start();
+      activePort = serverInfo.port;
+      baseUrl = serverInfo.url;
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message);
+    }
+
+    const aliasPublished = this.publishAlias(config, activePort);
 
     if (config.filePath) {
       const resolvedPath = resolve(config.filePath);
       if (!existsSync(resolvedPath)) {
         throw new Error(`File not found: ${config.filePath}`);
       }
-
       config.filePath = resolvedPath;
 
-      let session: DropSession;
-      let activePort: number;
-      let baseUrl: string;
-      try {
-        session = await this.sessionManager.createSession(config);
-        const serverInfo = await this.server.start();
-        activePort = serverInfo.port;
-        baseUrl = serverInfo.url;
-      }
-      catch (error) {
-        if (error instanceof SessionManagerError || error instanceof DropServerError) {
-          throw new Error(error.message);
-        }
-        throw error;
-      }
+      const session = await sessionManager.createSession(config);
+      const urls = buildShareUrls(config, baseUrl, session.id, aliasPublished);
 
-      this.aliasPublished = this.publishAliasIfConfigured(config, activePort);
-      const urls = this.getShareUrls(config, baseUrl, activePort, session.id, this.aliasPublished);
       console.log('\n✓ Drop created successfully!\n');
       console.log(`File: ${session.fileName}`);
-      console.log(`Size: ${this.formatBytes(session.fileSize)}`);
+      console.log(`Size: ${formatBytes(session.fileSize)}`);
       console.log(`Expires: ${session.expiresAt.toISOString()}`);
       if (urls.aliasUrl) {
         console.log(`\nAlias URL: ${urls.aliasUrl}`);
@@ -89,25 +77,10 @@ export class DropCli {
       console.log('Waiting for downloads until expiration...\n');
     }
     else {
-      let activePort: number;
-      let baseUrl: string;
-      try {
-        const serverInfo = await this.server.start();
-        activePort = serverInfo.port;
-        baseUrl = serverInfo.url;
-      }
-      catch (error) {
-        if (error instanceof DropServerError) {
-          throw new Error(error.message);
-        }
-        throw error;
-      }
-
-      this.aliasPublished = this.publishAliasIfConfigured(config, activePort);
       console.log('\n✓ Drop server ready for uploads!\n');
 
-      if (this.aliasPublished && config.alias) {
-        const urls = this.getShareUrls(config, baseUrl, activePort, '', true);
+      if (aliasPublished && config.alias) {
+        const urls = buildShareUrls(config, baseUrl, '', true);
         if (urls.aliasUrl) {
           console.log(`Alias Upload UI: ${urls.aliasUrl}`);
           console.log(`LAN Upload UI:   ${urls.lanUrl}\n`);
@@ -123,24 +96,18 @@ export class DropCli {
       console.log(`Expires: in ${config.durationMs / 1000}s\n`);
     }
 
-    this.setupShutdownHandlers();
-
+    this.setupShutdownHandlers(server, sessionManager);
     await this.waitForExpiration(config.durationMs);
-
-    await this.shutdown();
+    await this.shutdown(server, sessionManager);
   }
 
-  private setupShutdownHandlers(): void {
+  private setupShutdownHandlers(server: DropServer, sessionManager: InMemorySessionManager): void {
     const shutdown = (signal: string) => {
-      if (this.shutdownInProgress) {
-        return;
-      }
+      if (this.shutdownInProgress) return;
       this.shutdownInProgress = true;
       console.log(`Received ${signal}, shutting down...`);
-      void this.shutdown()
-        .then(() => {
-          process.exit(0);
-        })
+      void this.shutdown(server, sessionManager)
+        .then(() => process.exit(0))
         .catch((error) => {
           const message = error instanceof Error ? error.message : String(error);
           console.error(`Error during shutdown: ${message}`);
@@ -153,36 +120,21 @@ export class DropCli {
   }
 
   private async waitForExpiration(durationMs: number): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(resolve, durationMs);
-    });
+    return new Promise((resolve) => setTimeout(resolve, durationMs));
   }
 
-  private async shutdown(): Promise<void> {
+  private async shutdown(
+    server: DropServer,
+    sessionManager: InMemorySessionManager,
+  ): Promise<void> {
     await this.mdnsPublisher.stop();
-    if (this.server) {
-      await this.server.stop();
-    }
-    if (this.sessionManager) {
-      this.sessionManager.cleanup();
-    }
+    await server.stop();
+    sessionManager.cleanup();
     console.log('Goodbye!');
   }
 
-  private getShareUrls(
-    config: DropConfig,
-    baseUrl: string,
-    port: number,
-    sessionId: string,
-    includeAlias: boolean,
-  ): { lanUrl: string; aliasUrl?: string } {
-    return buildShareUrls(config, baseUrl, sessionId, includeAlias);
-  }
-
-  private publishAliasIfConfigured(config: DropConfig, port: number): boolean {
-    if (!config.alias) {
-      return false;
-    }
+  private publishAlias(config: DropConfig, port: number): boolean {
+    if (!config.alias) return false;
     try {
       this.mdnsPublisher.publishAlias(config.alias, port);
       return true;
@@ -192,14 +144,6 @@ export class DropCli {
       console.warn(`Could not publish mDNS alias "${toMdnsHost(config.alias)}": ${message}`);
       return false;
     }
-  }
-
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
   }
 }
 

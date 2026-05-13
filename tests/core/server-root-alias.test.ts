@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
-import { fixtureFile } from '../setup.ts';
+import { fileConfig } from '../setup.ts';
 
 describe('Server serveAtRoot (alias mode)', () => {
   let server: DropServer;
@@ -18,7 +17,7 @@ describe('Server serveAtRoot (alias mode)', () => {
 
   it('serves file at GET / when serveAtRoot is true and session exists at root', async () => {
     manager = new InMemorySessionManager();
-    const config = parseCliArgs(['-f', fixtureFile, '-t', '5m', '-a', 'john']);
+    const config = fileConfig('5m', '-a', 'john');
     await manager.createSession(config);
 
     server = createDropServer(manager, {

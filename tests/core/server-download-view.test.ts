@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
-import { fixtureFile } from '../setup.ts';
+import { fileConfig } from '../setup.ts';
 
 describe('Download view', () => {
   let server: DropServer;
@@ -18,7 +17,7 @@ describe('Download view', () => {
 
   it('includes expiration metadata for countdown', async () => {
     manager = new InMemorySessionManager();
-    const config = parseCliArgs(['-f', fixtureFile, '-t', '5m']);
+    const config = fileConfig();
     const session = await manager.createSession(config);
 
     server = createDropServer(manager, {
@@ -38,7 +37,7 @@ describe('Download view', () => {
 
   it('shows a post-download message inviting the user to try Drop', async () => {
     manager = new InMemorySessionManager();
-    const config = parseCliArgs(['-f', fixtureFile, '-t', '5m']);
+    const config = fileConfig();
     const session = await manager.createSession(config);
 
     server = createDropServer(manager, {

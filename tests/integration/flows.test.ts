@@ -2,16 +2,13 @@ import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser';
 import { InMemorySessionManager } from '../../src/core/session-manager';
 import { SlugGenerator } from '../../src/core/slug-generator';
-import { fixtureFile } from '../setup';
+import { fileConfig } from '../setup';
 
 describe('User creates a file sharing session', () => {
   it('accepts valid CLI commands with various time formats', () => {
     const scenarios = [
       { args: ['-f', 'video.mp4', '-t', '5m'], expected: { duration: 300000, port: 8080 } },
-      {
-        args: ['-f', 'backup.zip', '-t', '1h'],
-        expected: { duration: 3600000, port: 8080 },
-      },
+      { args: ['-f', 'backup.zip', '-t', '1h'], expected: { duration: 3600000, port: 8080 } },
       { args: ['-f', 'file.txt', '-t', '300'], expected: { duration: 300000, port: 8080 } },
     ];
 
@@ -39,14 +36,7 @@ describe('System generates unique sharing links', () => {
 describe('Session security and access control', () => {
   it('allows repeated downloads until expiration', async () => {
     const manager = new InMemorySessionManager();
-
-    const config = parseCliArgs([
-      '-f',
-      fixtureFile,
-      '-t',
-      '5m',
-    ]);
-    const session = await manager.createSession(config);
+    const session = await manager.createSession(fileConfig());
 
     const firstDownload = manager.consumeSession(session.id);
     expect(firstDownload).toBeDefined();
@@ -62,14 +52,7 @@ describe('Session security and access control', () => {
 
   it('automatically expires sessions after time limit', async () => {
     const manager = new InMemorySessionManager();
-
-    const config = parseCliArgs([
-      '-f',
-      fixtureFile,
-      '-t',
-      '1s',
-    ]);
-    const session = await manager.createSession(config);
+    const session = await manager.createSession(fileConfig('1s'));
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
 

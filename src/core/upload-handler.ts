@@ -1,10 +1,5 @@
-import type { DropSession } from '../types/session.ts';
-import type { SessionManager } from './session-manager.ts';
-
-type FormDataRead = {
-  get(name: string): unknown;
-  getAll(name: string): unknown[];
-};
+import type { DropSession } from '../types.ts';
+import type { InMemorySessionManager } from './session-manager.ts';
 
 export type UploadJsonPayload = {
   slug: string;
@@ -18,13 +13,9 @@ export type UploadFormResult =
   | { ok: false; status: 400; body: string }
   | { ok: true; payload: UploadJsonPayload };
 
-export interface UploadResult {
-  session: Awaited<ReturnType<SessionManager['createUploadSession']>>;
-}
-
 export async function handleUpload(
-  formData: FormDataRead,
-  sessionManager: SessionManager,
+  formData: FormData,
+  sessionManager: InMemorySessionManager,
   durationMs: number,
 ): Promise<UploadFormResult> {
   const files = formData.getAll('file').filter((value) => value instanceof File) as File[];
@@ -61,11 +52,11 @@ export async function handleUpload(
   };
 }
 
-export async function handleUploadSingle(
+async function handleUploadSingle(
   file: File,
-  sessionManager: SessionManager,
+  sessionManager: InMemorySessionManager,
   durationMs: number,
-): Promise<UploadResult> {
+): Promise<{ session: DropSession }> {
   const arrayBuffer = await file.arrayBuffer();
   const data = Buffer.from(arrayBuffer);
   const fileName = file.name || 'upload';
@@ -79,12 +70,12 @@ export async function handleUploadSingle(
   return { session };
 }
 
-export async function handleUploadMultiple(
+async function handleUploadMultiple(
   files: File[],
   directoryName: string | undefined,
-  sessionManager: SessionManager,
+  sessionManager: InMemorySessionManager,
   durationMs: number,
-): Promise<UploadResult> {
+): Promise<{ session: DropSession }> {
   const archiveEntries: Record<string, Uint8Array> = {};
 
   for (const file of files) {

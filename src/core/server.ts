@@ -1,49 +1,16 @@
 import { networkInterfaces } from 'node:os';
-import type { ServerConfig } from '../types/config.ts';
+import type { ServerConfig } from '../types.ts';
 import { routeRequest } from './router.ts';
-import type { SessionManager } from './session-manager.ts';
+import type { InMemorySessionManager } from './session-manager.ts';
 import { renderTemplate } from './template-renderer.ts';
 import { handleUpload } from './upload-handler.ts';
 
-export class DropServerError extends Error {
-  constructor(
-    message: string,
-    public override readonly cause?: Error,
-  ) {
-    super(message);
-    this.name = 'DropServerError';
-  }
-}
-
-export type DropServerConfig = {
-  port?: number;
-  durationMs: number;
-  serveAtRoot?: boolean;
-};
-
-export interface DropServer {
-  start(): Promise<{ url: string; port: number }>;
-  stop(): Promise<void>;
-}
-
-export function createDropServer(
-  sessionManager: SessionManager,
-  config: DropServerConfig,
-): DropServer {
-  return new BunDropServer(sessionManager, {
-    host: '0.0.0.0',
-    port: config.port ?? 8080,
-    serveAtRoot: config.serveAtRoot ?? false,
-    durationMs: config.durationMs,
-  });
-}
-
-class BunDropServer implements DropServer {
+export class DropServer {
   private server?: ReturnType<typeof Bun.serve>;
-  private sessionManager: SessionManager;
+  private sessionManager: InMemorySessionManager;
   private config: ServerConfig;
 
-  constructor(sessionManager: SessionManager, config: ServerConfig) {
+  constructor(sessionManager: InMemorySessionManager, config: ServerConfig) {
     this.sessionManager = sessionManager;
     this.config = config;
   }
@@ -70,11 +37,11 @@ class BunDropServer implements DropServer {
           continue;
         }
         const err = error instanceof Error ? error : new Error(String(error));
-        throw new DropServerError(`Failed to start server on port ${nextPort}`, err);
+        throw new Error(`Failed to start server on port ${nextPort}`, { cause: err });
       }
     }
 
-    throw new DropServerError(
+    throw new Error(
       `Failed to start server: no available ports from ${initialPort} to 65535`,
     );
   }
@@ -195,40 +162,33 @@ class BunDropServer implements DropServer {
 
   private getLocalIp(): string {
     try {
-      const interfaces = networkInterfaces();
-
-      for (const ifaceName of Object.keys(interfaces)) {
-        const iface = interfaces[ifaceName];
-        if (!iface) continue;
-
-        for (const alias of iface) {
-          if (alias.family === 'IPv4' && !alias.internal) {
-            return alias.address;
-          }
+      for (const iface of Object.values(networkInterfaces()).flat()) {
+        if (iface?.family === 'IPv4' && !iface.internal) {
+          return iface.address;
         }
       }
     }
-    catch {
-      return 'localhost';
-    }
+    catch { /* empty */ }
     return 'localhost';
   }
 
   private isAddressInUseError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') {
-      return false;
-    }
-
-    if ('code' in error && error.code === 'EADDRINUSE') {
-      return true;
-    }
-
-    if ('message' in error && typeof error.message === 'string') {
-      return error.message.includes('EADDRINUSE');
-    }
-
-    return false;
+    return error instanceof Error
+      && (('code' in error && error.code === 'EADDRINUSE')
+        || error.message.includes('EADDRINUSE'));
   }
+}
+
+export function createDropServer(
+  sessionManager: InMemorySessionManager,
+  config: { port?: number; durationMs: number; serveAtRoot?: boolean },
+): DropServer {
+  return new DropServer(sessionManager, {
+    host: '0.0.0.0',
+    port: config.port ?? 8080,
+    serveAtRoot: config.serveAtRoot ?? false,
+    durationMs: config.durationMs,
+  });
 }
 
 async function serveStaticAsset(type: 'css' | 'js'): Promise<Response> {

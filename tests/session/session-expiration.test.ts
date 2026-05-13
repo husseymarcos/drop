@@ -1,20 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
-import { fixtureFile } from '../setup.ts';
+import { fileConfig } from '../setup.ts';
 
 describe('Session expiration', () => {
   it('recognizes expired sessions', async () => {
     const manager = new InMemorySessionManager();
-
-    const config = parseCliArgs([
-      '-f',
-      fixtureFile,
-      '-t',
-      '1s',
-    ]);
-
-    const session = await manager.createSession(config);
+    const session = await manager.createSession(fileConfig('1s'));
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
@@ -26,15 +17,7 @@ describe('Session expiration', () => {
 
   it('recognizes non-expired sessions', async () => {
     const manager = new InMemorySessionManager();
-
-    const config = parseCliArgs([
-      '-f',
-      fixtureFile,
-      '-t',
-      '1h',
-    ]);
-
-    const session = await manager.createSession(config);
+    const session = await manager.createSession(fileConfig('1h'));
 
     expect(manager.isExpired(session)).toBe(false);
     expect(manager.getSession(session.id)).toBeDefined();

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { parseCliArgs } from '../../src/cli/args-parser.ts';
 import { InMemorySessionManager } from '../../src/core/session-manager.ts';
-import { fixtureFile } from '../setup.ts';
+import { fileConfig } from '../setup.ts';
 
 describe('Session lifecycle management', () => {
   let manager: InMemorySessionManager;
@@ -15,13 +14,7 @@ describe('Session lifecycle management', () => {
   });
 
   it('allows multiple downloads while session is active', async () => {
-    const config = parseCliArgs([
-      '-f',
-      fixtureFile,
-      '-t',
-      '5m',
-    ]);
-
+    const config = fileConfig();
     const session = await manager.createSession(config);
     const slug = session.id;
 

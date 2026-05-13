@@ -1,32 +1,12 @@
-import type { DropConfig } from '../types/config';
-import type { DropSession } from '../types/session';
-import type { FileLoader } from './file-loader';
-import { FileLoaderError, InMemoryFileLoader } from './file-loader';
-import { SlugGenerator } from './slug-generator';
+import type { DropConfig, DropSession } from '../types.ts';
+import { detectMimeType } from '../utils.ts';
+import { InMemoryFileLoader } from './file-loader.ts';
+import { SlugGenerator } from './slug-generator.ts';
 
-export class SessionManagerError extends Error {
-  constructor(
-    message: string,
-    public override readonly cause?: Error,
-  ) {
-    super(message);
-    this.name = 'SessionManagerError';
-  }
-}
-
-export interface SessionManager {
-  createSession(config: DropConfig): Promise<DropSession>;
-  createUploadSession(fileName: string, data: Buffer, durationMs: number): Promise<DropSession>;
-  getSession(slug: string): DropSession | undefined;
-  consumeSession(slug: string): DropSession | undefined;
-  isExpired(session: DropSession): boolean;
-  cleanup(): void;
-}
-
-export class InMemorySessionManager implements SessionManager {
+export class InMemorySessionManager {
   private sessions: Map<string, DropSession> = new Map();
   private slugGenerator: SlugGenerator;
-  private fileLoader: FileLoader;
+  private fileLoader: InMemoryFileLoader;
   private cleanupTimer?: Timer;
 
   constructor() {
@@ -39,7 +19,7 @@ export class InMemorySessionManager implements SessionManager {
     let slug: string | undefined;
     try {
       if (!config.filePath) {
-        throw new SessionManagerError('Missing filePath in DropConfig for createSession');
+        throw new Error('Missing filePath in DropConfig for createSession');
       }
 
       slug = config.alias ? '' : this.slugGenerator.generate();
@@ -60,13 +40,11 @@ export class InMemorySessionManager implements SessionManager {
         this.slugGenerator.release(slug);
       }
 
-      if (error instanceof FileLoaderError || error instanceof SessionManagerError) {
-        throw error instanceof SessionManagerError
-          ? error
-          : new SessionManagerError('Failed to create session', error);
+      if (error instanceof Error && error.message.includes('Cannot load file')) {
+        throw error;
       }
 
-      throw error;
+      throw new Error('Failed to create session', { cause: error instanceof Error ? error : undefined });
     }
   }
 
@@ -79,17 +57,15 @@ export class InMemorySessionManager implements SessionManager {
       id: slug,
       fileName,
       fileSize: data.length,
-      mimeType: this.detectMimeType(fileName),
+      mimeType: detectMimeType(fileName),
       data,
       expiresAt,
-      isConsumed: false,
       downloadCount: 0,
     };
 
     this.sessions.set(slug, session);
 
-    console.info(`
-      Upload session created: ${slug} (${fileName}) expires at ${expiresAt.toISOString()}`);
+    console.info(`Upload session created: ${slug} (${fileName})`);
 
     return session;
   }
@@ -97,11 +73,7 @@ export class InMemorySessionManager implements SessionManager {
   getSession(slug: string): DropSession | undefined {
     const session = this.sessions.get(slug);
 
-    if (!session) {
-      return undefined;
-    }
-
-    if (this.isExpired(session)) {
+    if (!session || this.isExpired(session)) {
       return undefined;
     }
 
@@ -136,7 +108,6 @@ export class InMemorySessionManager implements SessionManager {
   }
 
   private startCleanupInterval(): void {
-    // Run cleanup every 30 seconds
     this.cleanupTimer = setInterval(() => {
       this.performCleanup();
     }, 30000);
@@ -163,31 +134,8 @@ export class InMemorySessionManager implements SessionManager {
       clearInterval(this.cleanupTimer);
     }
 
-    // Clear all sessions
     for (const slug of this.sessions.keys()) {
       this.deleteSession(slug);
     }
-  }
-
-  private detectMimeType(fileName: string): string {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-
-    const mimeTypes: Record<string, string> = {
-      pdf: 'application/pdf',
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      mp4: 'video/mp4',
-      mp3: 'audio/mpeg',
-      zip: 'application/zip',
-      json: 'application/json',
-      txt: 'text/plain',
-      html: 'text/html',
-      js: 'application/javascript',
-      ts: 'application/typescript',
-    };
-
-    return mimeTypes[ext || ''] || 'application/octet-stream';
   }
 }
