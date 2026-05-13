@@ -105,7 +105,7 @@ function ms(value: string): number {
   const match = value.match(/^(\d+(?:\.\d+)?)\s*(s|m|h|d)?$/);
   if (!match) return Number.NaN;
 
-  const num = parseFloat(match[1]);
+  const num = parseFloat(match[1]!);
   const unit = match[2] || 's';
   return num * (units[unit] || 1000);
 }

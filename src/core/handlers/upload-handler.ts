@@ -10,7 +10,7 @@ export class UploadHandler {
   ) {}
 
   async handle(request: Request): Promise<Response> {
-    const formData = await request.formData();
+    const formData = await request.formData() as globalThis.FormData;
     const files = formData.getAll('file').filter((value) => value instanceof File) as File[];
 
     if (files.length === 0) {

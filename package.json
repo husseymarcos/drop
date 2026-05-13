@@ -1,8 +1,28 @@
 {
   "name": "@husseymarcos/drop",
   "version": "1.0.6",
+  "description": "High-performance ephemeral server for sharing files over the local network",
   "module": "index.ts",
   "type": "module",
+  "license": "MIT",
+  "author": "Marcos Hussey",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/husseymarcos/drop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/husseymarcos/drop/issues"
+  },
+  "homepage": "https://github.com/husseymarcos/drop#readme",
+  "keywords": [
+    "file-sharing",
+    "lan",
+    "local-network",
+    "ephemeral",
+    "cli",
+    "bun",
+    "typescript"
+  ],
   "bin": {
     "drop": "./index.ts"
   },
