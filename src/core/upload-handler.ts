@@ -1,4 +1,4 @@
-import type { DropSession } from '../types.ts';
+import type { Drop } from '../drop.ts';
 import type { InMemorySessionManager } from './session-manager.ts';
 
 export type UploadJsonPayload = {
@@ -29,25 +29,25 @@ export async function handleUpload(
     ? directoryNameField.trim()
     : undefined;
 
-  let session: DropSession;
+  let drop: Drop;
 
   if (files.length === 1 && !directoryName) {
     const result = await handleUploadSingle(files[0]!, sessionManager, durationMs);
-    session = result.session;
+    drop = result.drop;
   }
   else {
     const result = await handleUploadMultiple(files, directoryName, sessionManager, durationMs);
-    session = result.session;
+    drop = result.drop;
   }
 
   return {
     ok: true,
     payload: {
-      slug: session.id,
-      fileName: session.fileName,
-      expiresAt: session.expiresAt.toISOString(),
-      fileSize: session.fileSize,
-      mimeType: session.mimeType,
+      slug: drop.id,
+      fileName: drop.fileName,
+      expiresAt: drop.expiresAt.toISOString(),
+      fileSize: drop.fileSize,
+      mimeType: drop.mimeType,
     },
   };
 }
@@ -56,18 +56,18 @@ async function handleUploadSingle(
   file: File,
   sessionManager: InMemorySessionManager,
   durationMs: number,
-): Promise<{ session: DropSession }> {
+): Promise<{ drop: Drop }> {
   const arrayBuffer = await file.arrayBuffer();
   const data = Buffer.from(arrayBuffer);
   const fileName = file.name || 'upload';
 
-  const session = await sessionManager.createUploadSession(
+  const drop = await sessionManager.createUploadSession(
     fileName,
     data,
     durationMs,
   );
 
-  return { session };
+  return { drop };
 }
 
 async function handleUploadMultiple(
@@ -75,7 +75,7 @@ async function handleUploadMultiple(
   directoryName: string | undefined,
   sessionManager: InMemorySessionManager,
   durationMs: number,
-): Promise<{ session: DropSession }> {
+): Promise<{ drop: Drop }> {
   const archiveEntries: Record<string, Uint8Array> = {};
 
   for (const file of files) {
@@ -92,11 +92,11 @@ async function handleUploadMultiple(
 
   const archiveFileName = `${inferredDirectoryName}.tar`;
 
-  const session = await sessionManager.createUploadSession(
+  const drop = await sessionManager.createUploadSession(
     archiveFileName,
     archiveBuffer,
     durationMs,
   );
 
-  return { session };
+  return { drop };
 }

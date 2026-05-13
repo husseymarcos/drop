@@ -56,7 +56,7 @@ describe('Session security and access control', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
-    expect(manager.isExpired(session)).toBe(true);
+    expect(session.isExpired).toBe(true);
     expect(manager.getSession(session.id)).toBeUndefined();
 
     manager.cleanup();

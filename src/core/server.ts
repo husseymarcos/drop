@@ -112,9 +112,9 @@ export class DropServer {
   }
 
   private async handleDownloadRequest(slug: string, shouldDownload: boolean): Promise<Response> {
-    const session = this.sessionManager.getSession(slug);
+    const drop = this.sessionManager.getSession(slug);
 
-    if (!session) {
+    if (!drop) {
       console.warn(`Session not found or expired: ${slug}`);
       const html = await renderTemplate('not-found', {});
       return new Response(html, {
@@ -123,16 +123,11 @@ export class DropServer {
       });
     }
 
-    if (this.sessionManager.isExpired(session)) {
-      console.warn(`Session expired: ${slug}`);
-      return new Response('File has expired', { status: 410 });
-    }
-
     if (!shouldDownload) {
       const html = await renderTemplate('download', {
-        filename: session.fileName,
+        filename: drop.fileName,
         slug,
-        expiresAt: session.expiresAt.toISOString(),
+        expiresAt: drop.expiresAt.toISOString(),
       });
 
       return new Response(html, {
@@ -140,13 +135,13 @@ export class DropServer {
       });
     }
 
-    this.sessionManager.consumeSession(slug);
+    drop.consume();
 
-    return new Response(session.data, {
+    return new Response(drop.data, {
       headers: {
-        'Content-Type': session.mimeType,
-        'Content-Disposition': `attachment; filename="${session.fileName}"`,
-        'Content-Length': session.fileSize.toString(),
+        'Content-Type': drop.mimeType,
+        'Content-Disposition': `attachment; filename="${drop.fileName}"`,
+        'Content-Length': drop.fileSize.toString(),
         'Cache-Control': 'no-store',
       },
     });

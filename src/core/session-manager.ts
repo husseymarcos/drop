@@ -1,21 +1,25 @@
-import type { DropConfig, DropSession } from '../types.ts';
+import type { DropConfig } from '../types.ts';
+import { Drop } from '../drop.ts';
 import { detectMimeType } from '../utils.ts';
-import { InMemoryFileLoader } from './file-loader.ts';
+import { FileLoader } from './file-loader.ts';
 import { SlugGenerator } from './slug-generator.ts';
 
 export class InMemorySessionManager {
-  private sessions: Map<string, DropSession> = new Map();
+  private sessions = new Map<string, Drop>();
   private slugGenerator: SlugGenerator;
-  private fileLoader: InMemoryFileLoader;
+  private fileLoader: FileLoader;
   private cleanupTimer?: Timer;
 
-  constructor() {
-    this.slugGenerator = new SlugGenerator();
-    this.fileLoader = new InMemoryFileLoader();
+  constructor(
+    slugGenerator = new SlugGenerator(),
+    fileLoader = new FileLoader(),
+  ) {
+    this.slugGenerator = slugGenerator;
+    this.fileLoader = fileLoader;
     this.startCleanupInterval();
   }
 
-  async createSession(config: DropConfig): Promise<DropSession> {
+  async createSession(config: DropConfig): Promise<Drop> {
     let slug: string | undefined;
     try {
       if (!config.filePath) {
@@ -27,13 +31,13 @@ export class InMemorySessionManager {
 
       console.debug(`Creating session with slug: ${slug || '(root)'}`);
 
-      const session = await this.fileLoader.load(config.filePath, slug, expiresAt);
+      const drop = await this.fileLoader.load(config.filePath, slug, expiresAt);
 
-      this.sessions.set(slug, session);
+      this.sessions.set(slug, drop);
 
       console.info(`Session created: ${slug || '(root)'} (expires: ${expiresAt.toISOString()})`);
 
-      return session;
+      return drop;
     }
     catch (error) {
       if (slug && slug.length > 0) {
@@ -49,58 +53,35 @@ export class InMemorySessionManager {
   }
 
   async createUploadSession(
-    fileName: string, data: Buffer, durationMs: number): Promise<DropSession> {
+    fileName: string, data: Buffer, durationMs: number): Promise<Drop> {
     const slug = this.slugGenerator.generate();
     const expiresAt = new Date(Date.now() + durationMs);
+    const drop = new Drop(slug, fileName, data.length, detectMimeType(fileName), data, expiresAt);
 
-    const session: DropSession = {
-      id: slug,
-      fileName,
-      fileSize: data.length,
-      mimeType: detectMimeType(fileName),
-      data,
-      expiresAt,
-      downloadCount: 0,
-    };
-
-    this.sessions.set(slug, session);
+    this.sessions.set(slug, drop);
 
     console.info(`Upload session created: ${slug} (${fileName})`);
 
-    return session;
+    return drop;
   }
 
-  getSession(slug: string): DropSession | undefined {
-    const session = this.sessions.get(slug);
+  getSession(slug: string): Drop | undefined {
+    const drop = this.sessions.get(slug);
+    return drop && !drop.isExpired ? drop : undefined;
+  }
 
-    if (!session || this.isExpired(session)) {
-      return undefined;
+  consumeSession(slug: string): Drop | undefined {
+    const drop = this.getSession(slug);
+    if (drop) {
+      drop.consume();
+      console.info(`Session download registered: ${slug} (downloads: ${drop.downloadCount})`);
     }
-
-    return session;
-  }
-
-  consumeSession(slug: string): DropSession | undefined {
-    const session = this.getSession(slug);
-
-    if (!session) {
-      return undefined;
-    }
-
-    session.downloadCount++;
-
-    console.info(`Session download registered: ${slug} (downloads: ${session.downloadCount})`);
-
-    return session;
-  }
-
-  isExpired(session: DropSession): boolean {
-    return new Date() > session.expiresAt;
+    return drop;
   }
 
   private deleteSession(slug: string): void {
-    const session = this.sessions.get(slug);
-    if (session) {
+    const drop = this.sessions.get(slug);
+    if (drop) {
       this.sessions.delete(slug);
       this.slugGenerator.release(slug);
       console.info(`Session deleted: ${slug}`);
@@ -114,11 +95,10 @@ export class InMemorySessionManager {
   }
 
   private performCleanup(): void {
-    const now = new Date();
     let cleaned = 0;
 
-    for (const [slug, session] of this.sessions.entries()) {
-      if (now > session.expiresAt) {
+    for (const [slug, drop] of this.sessions.entries()) {
+      if (drop.isExpired) {
         this.deleteSession(slug);
         cleaned++;
       }

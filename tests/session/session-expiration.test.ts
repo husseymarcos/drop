@@ -9,7 +9,7 @@ describe('Session expiration', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
-    expect(manager.isExpired(session)).toBe(true);
+    expect(session.isExpired).toBe(true);
     expect(manager.getSession(session.id)).toBeUndefined();
 
     manager.cleanup();
@@ -19,7 +19,7 @@ describe('Session expiration', () => {
     const manager = new InMemorySessionManager();
     const session = await manager.createSession(fileConfig('1h'));
 
-    expect(manager.isExpired(session)).toBe(false);
+    expect(session.isExpired).toBe(false);
     expect(manager.getSession(session.id)).toBeDefined();
 
     manager.cleanup();

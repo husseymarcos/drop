@@ -1,11 +1,11 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import JSZip from 'jszip';
-import type { DropSession } from '../types.ts';
+import { Drop } from '../drop.ts';
 import { detectMimeType, formatBytes } from '../utils.ts';
 
-export class InMemoryFileLoader {
-  async load(filePath: string, sessionId: string, expiresAt: Date): Promise<DropSession> {
+export class FileLoader {
+  async load(filePath: string, id: string, expiresAt: Date): Promise<Drop> {
     console.debug(`Loading file: ${filePath}`);
 
     try {
@@ -29,15 +29,7 @@ export class InMemoryFileLoader {
 
       console.info(`File loaded: ${fileName} (${formatBytes(data.length)})`);
 
-      return {
-        id: sessionId,
-        fileName,
-        fileSize: data.length,
-        mimeType,
-        data,
-        expiresAt,
-        downloadCount: 0,
-      };
+      return new Drop(id, fileName, data.length, mimeType, data, expiresAt);
     }
     catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
