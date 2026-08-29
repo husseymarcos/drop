@@ -24,8 +24,4 @@ export class SlugGenerator {
 
     return `drop-${Date.now()}`;
   }
-
-  release(slug: string): void {
-    this.usedSlugs.delete(slug);
-  }
 }

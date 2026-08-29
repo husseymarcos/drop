@@ -11,7 +11,6 @@ describe('Session lifecycle management', () => {
   beforeEach(() => {
     store = new DropStore();
     factory = new DropFactory();
-    store.onRemove((slug) => factory.release(slug));
   });
 
   it('returns undefined for non-existent sessions', () => {

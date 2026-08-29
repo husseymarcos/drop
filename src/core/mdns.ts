@@ -2,12 +2,7 @@ import { Bonjour, type Service } from 'bonjour-service';
 
 export const toMdnsHost = (alias: string): string => `${alias}.local`;
 
-export interface MdnsPublisher {
-  publishAlias(alias: string, port: number): void;
-  stop(): Promise<void>;
-}
-
-export class BonjourMdnsPublisher implements MdnsPublisher {
+export class BonjourMdnsPublisher {
   private bonjour?: Bonjour;
   private service?: Service;
 

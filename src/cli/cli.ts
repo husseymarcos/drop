@@ -1,9 +1,6 @@
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DropServer, createDropServer } from '../core/server.ts';
 import { BonjourMdnsPublisher, toMdnsHost } from '../core/mdns.ts';
-import type { MdnsPublisher } from '../core/mdns.ts';
-import { DropCleaner } from '../core/drop-cleaner.ts';
 import { DropFactory } from '../core/drop-factory.ts';
 import { DropStore } from '../core/drop-store.ts';
 import type { DropConfig } from '../types.ts';
@@ -12,12 +9,8 @@ import { parseCliArgs } from './args-parser.ts';
 import { buildShareUrls } from './share-urls.ts';
 
 export class DropCli {
-  private mdnsPublisher: MdnsPublisher;
+  private mdnsPublisher = new BonjourMdnsPublisher();
   private shutdownInProgress = false;
-
-  constructor(mdnsPublisher: MdnsPublisher = new BonjourMdnsPublisher()) {
-    this.mdnsPublisher = mdnsPublisher;
-  }
 
   async run(args: string[]): Promise<void> {
     try {
@@ -35,10 +28,6 @@ export class DropCli {
   private async validateAndRun(config: DropConfig): Promise<void> {
     const store = new DropStore();
     const factory = new DropFactory();
-    store.onRemove((slug) => factory.release(slug));
-
-    const cleaner = new DropCleaner(store);
-    cleaner.start();
 
     const server = createDropServer(store, factory, {
       port: config.port,
@@ -46,27 +35,12 @@ export class DropCli {
       durationMs: config.durationMs,
     });
 
-    let activePort: number;
-    let baseUrl: string;
-
-    try {
-      const serverInfo = await server.start();
-      activePort = serverInfo.port;
-      baseUrl = serverInfo.url;
-    }
-    catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(message);
-    }
+    const { url: baseUrl, port: activePort } = await server.start();
 
     const aliasPublished = this.publishAlias(config, activePort);
 
     if (config.filePath) {
-      const resolvedPath = resolve(config.filePath);
-      if (!existsSync(resolvedPath)) {
-        throw new Error(`File not found: ${config.filePath}`);
-      }
-      config.filePath = resolvedPath;
+      config.filePath = resolve(config.filePath);
 
       const drop = await factory.fromFile(config.filePath, config.durationMs, config.alias);
       store.add(drop.id, drop);
@@ -105,21 +79,17 @@ export class DropCli {
       console.log(`Expires: in ${config.durationMs / 1000}s\n`);
     }
 
-    this.setupShutdownHandlers(server, store, cleaner);
+    this.setupShutdownHandlers(server, store);
     await this.waitForExpiration(config.durationMs);
-    await this.shutdown(server, store, cleaner);
+    await this.shutdown(server, store);
   }
 
-  private setupShutdownHandlers(
-    server: DropServer,
-    store: DropStore,
-    cleaner: DropCleaner,
-  ): void {
+  private setupShutdownHandlers(server: DropServer, store: DropStore): void {
     const shutdown = (signal: string) => {
       if (this.shutdownInProgress) return;
       this.shutdownInProgress = true;
       console.log(`Received ${signal}, shutting down...`);
-      void this.shutdown(server, store, cleaner)
+      void this.shutdown(server, store)
         .then(() => process.exit(0))
         .catch((error) => {
           const message = error instanceof Error ? error.message : String(error);
@@ -136,13 +106,8 @@ export class DropCli {
     return new Promise((resolve) => setTimeout(resolve, durationMs));
   }
 
-  private async shutdown(
-    server: DropServer,
-    store: DropStore,
-    cleaner: DropCleaner,
-  ): Promise<void> {
+  private async shutdown(server: DropServer, store: DropStore): Promise<void> {
     await this.mdnsPublisher.stop();
-    cleaner.stop();
     await server.stop();
     store.clear();
     console.log('Goodbye!');
@@ -160,9 +125,4 @@ export class DropCli {
       return false;
     }
   }
-}
-
-if (import.meta.main) {
-  const cli = new DropCli();
-  await cli.run(process.argv.slice(2));
 }

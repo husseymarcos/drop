@@ -24,8 +24,8 @@ describe('FileLoader directory support', () => {
     const expiresAt = new Date(Date.now() + 60_000);
     const drop = await loader.load(dirPath, 'session-1', expiresAt);
 
-    expect(drop.fileName).toBe(`${basename(dirPath)}.zip`);
-    expect(drop.mimeType).toBe('application/zip');
+    expect(drop.fileName).toBe(`${basename(dirPath)}.tar`);
+    expect(drop.mimeType).toBe('application/x-tar');
     expect(drop.fileSize).toBeGreaterThan(0);
   });
 });

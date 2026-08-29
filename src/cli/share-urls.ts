@@ -1,28 +1,20 @@
 import type { DropConfig } from '../types.ts';
 import { toMdnsHost } from '../core/mdns.ts';
 
-function portSuffix(port: string): string {
-  return port === '80' || port === '443' ? '' : `:${port}`;
-}
-
 export function buildShareUrls(
   config: DropConfig,
   baseUrl: string,
   sessionId: string,
   includeAlias: boolean,
 ): { lanUrl: string; aliasUrl?: string } {
-  const pathSegment = sessionId ? `/${sessionId}` : '/';
-  const url = new URL(baseUrl);
-  const port = url.port || (url.protocol === 'https:' ? '443' : '80');
-  const suffix = portSuffix(port);
-  const lanUrl = `${url.protocol}//${url.hostname}${suffix}${pathSegment}`;
+  const path = sessionId ? `/${sessionId}` : '/';
+  const base = new URL(baseUrl);
+  const lanUrl = new URL(path, base).toString();
 
   if (!config.alias || !includeAlias) {
     return { lanUrl };
   }
 
-  return {
-    lanUrl,
-    aliasUrl: `http://${toMdnsHost(config.alias)}${suffix}${pathSegment}`,
-  };
+  const aliasBase = `http://${toMdnsHost(config.alias)}${base.port ? `:${base.port}` : ''}`;
+  return { lanUrl, aliasUrl: new URL(path, aliasBase).toString() };
 }

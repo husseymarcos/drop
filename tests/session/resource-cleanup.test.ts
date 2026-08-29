@@ -7,7 +7,6 @@ describe('Resource cleanup', () => {
   it('removes all sessions on clear', async () => {
     const store = new DropStore();
     const factory = new DropFactory();
-    store.onRemove((slug) => factory.release(slug));
 
     const drops = await Promise.all([
       factory.fromFile(fileConfig().filePath!, 300000),

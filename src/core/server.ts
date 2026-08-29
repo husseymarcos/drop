@@ -3,9 +3,6 @@ import { DropFactory } from './drop-factory.ts';
 import { DropStore } from './drop-store.ts';
 import { RequestDispatcher } from './request-dispatcher.ts';
 import { DownloadHandler } from './handlers/download-handler.ts';
-import { NotFoundHandler } from './handlers/not-found-handler.ts';
-import { RootHandler } from './handlers/root-handler.ts';
-import { StaticHandler } from './handlers/static-handler.ts';
 import { UploadHandler } from './handlers/upload-handler.ts';
 
 export class DropServer {
@@ -86,13 +83,11 @@ export function createDropServer(
   config: { port?: number; durationMs: number; serveAtRoot?: boolean },
 ): DropServer {
   const dispatcher = new RequestDispatcher(
-    new StaticHandler(),
     new UploadHandler(factory, store, config.durationMs),
     new DownloadHandler(store),
-    new RootHandler(config.durationMs),
-    new NotFoundHandler(),
     store,
     config.serveAtRoot ?? false,
+    config.durationMs,
   );
 
   return new DropServer(

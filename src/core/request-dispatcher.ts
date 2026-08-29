@@ -1,20 +1,16 @@
 import { routeRequest } from './router.ts';
 import { DropStore } from './drop-store.ts';
 import { DownloadHandler } from './handlers/download-handler.ts';
-import { NotFoundHandler } from './handlers/not-found-handler.ts';
-import { RootHandler } from './handlers/root-handler.ts';
-import { StaticHandler } from './handlers/static-handler.ts';
 import { UploadHandler } from './handlers/upload-handler.ts';
+import { renderNotFound, renderTemplate } from './template-renderer.ts';
 
 export class RequestDispatcher {
   constructor(
-    private staticHandler: StaticHandler,
     private uploadHandler: UploadHandler,
     private downloadHandler: DownloadHandler,
-    private rootHandler: RootHandler,
-    private notFoundHandler: NotFoundHandler,
     private store: DropStore,
     private serveAtRoot: boolean,
+    private durationMs: number,
   ) {}
 
   async dispatch(request: Request): Promise<Response> {
@@ -23,9 +19,9 @@ export class RequestDispatcher {
 
     switch (route.kind) {
       case 'static-css':
-        return this.staticHandler.handle('css');
+        return this.serveStatic('../views/common.css', 'text/css; charset=utf-8');
       case 'static-js':
-        return this.staticHandler.handle('js');
+        return this.serveStatic('../views/countdown.js', 'application/javascript; charset=utf-8');
       case 'upload':
         return this.uploadHandler.handle(request);
       case 'download':
@@ -33,17 +29,29 @@ export class RequestDispatcher {
       case 'root':
         return this.handleRoot(url.searchParams);
       case 'not-found':
-        return this.notFoundHandler.handle();
+        return renderNotFound();
     }
   }
 
-  private handleRoot(searchParams: URLSearchParams): Promise<Response> {
+  private serveStatic(path: string, contentType: string): Response {
+    return new Response(Bun.file(new URL(path, import.meta.url)), {
+      headers: { 'Content-Type': contentType },
+    });
+  }
+
+  private async handleRoot(searchParams: URLSearchParams): Promise<Response> {
     if (this.serveAtRoot) {
       const drop = this.store.find('');
       if (drop) {
         return this.downloadHandler.handle('', searchParams.get('download') === '1');
       }
     }
-    return this.rootHandler.handle();
+
+    const html = await renderTemplate('root', {
+      expiresAt: new Date(Date.now() + this.durationMs).toISOString(),
+    });
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
   }
 }
