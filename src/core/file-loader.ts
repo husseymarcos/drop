@@ -1,34 +1,22 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { Drop } from '../drop.ts';
+import type { DropContent } from '../drop.ts';
+import { buildTarArchive } from './tar-archive.ts';
 import { formatBytes } from '../utils.ts';
 
 export class FileLoader {
-  async load(filePath: string, id: string, expiresAt: Date): Promise<Drop> {
+  async load(filePath: string): Promise<DropContent> {
     console.debug(`Loading file: ${filePath}`);
 
     try {
       const fileStats = await stat(filePath);
+      const content = fileStats.isDirectory()
+        ? await this.loadDirectory(filePath)
+        : await this.loadFile(filePath);
 
-      let data: Buffer;
-      let fileName: string;
-      let mimeType: string;
+      console.info(`File loaded: ${content.fileName} (${formatBytes(content.data.length)})`);
 
-      if (fileStats.isDirectory()) {
-        const archive = await this.loadDirectoryAsArchive(filePath);
-        data = archive.data;
-        fileName = archive.fileName;
-        mimeType = archive.mimeType;
-      }
-      else {
-        data = await readFile(filePath);
-        fileName = basename(filePath);
-        mimeType = Bun.file(filePath).type;
-      }
-
-      console.info(`File loaded: ${fileName} (${formatBytes(data.length)})`);
-
-      return new Drop(id, fileName, data.length, mimeType, data, expiresAt);
+      return content;
     }
     catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -37,20 +25,18 @@ export class FileLoader {
     }
   }
 
-  private async loadDirectoryAsArchive(
-    directoryPath: string,
-  ): Promise<{ data: Buffer; fileName: string; mimeType: string }> {
+  private async loadFile(filePath: string): Promise<DropContent> {
+    return {
+      fileName: basename(filePath),
+      data: await readFile(filePath),
+      mimeType: Bun.file(filePath).type,
+    };
+  }
+
+  private async loadDirectory(directoryPath: string): Promise<DropContent> {
     const entries: Record<string, Uint8Array> = {};
     await this.collectEntries(directoryPath, '', entries);
-
-    const blob = await new Bun.Archive(entries).blob();
-    const directoryName = basename(directoryPath);
-
-    return {
-      data: Buffer.from(await blob.arrayBuffer()),
-      fileName: `${directoryName}.tar`,
-      mimeType: 'application/x-tar',
-    };
+    return buildTarArchive(entries, basename(directoryPath));
   }
 
   private async collectEntries(

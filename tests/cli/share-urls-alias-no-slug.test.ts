@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { buildShareUrls } from '../../src/cli/share-urls';
 
-describe('Share URLs when alias is set (no slug)', () => {
-  it('returns LAN and alias URLs without path when sessionId is empty', () => {
+describe('Share URLs when alias is set (root address)', () => {
+  it('returns LAN and alias URLs without a slug path at the root address', () => {
     const result = buildShareUrls(
       { alias: 'john', filePath: '/x', durationMs: 300000 },
       'http://192.168.1.1:8080',
-      '',
+      { kind: 'root' },
       true,
     );
     expect(result.lanUrl).toBe('http://192.168.1.1:8080/');
@@ -17,18 +17,18 @@ describe('Share URLs when alias is set (no slug)', () => {
     const result = buildShareUrls(
       { alias: 'john', filePath: '/x', durationMs: 300000 },
       'http://192.168.1.1:80',
-      '',
+      { kind: 'root' },
       true,
     );
     expect(result.lanUrl).toBe('http://192.168.1.1/');
     expect(result.aliasUrl).toBe('http://john.local/');
   });
 
-  it('returns LAN URL with slug when sessionId is non-empty and no alias', () => {
+  it('returns LAN URL with the slug when the address is a slug and no alias', () => {
     const result = buildShareUrls(
       { filePath: '/x', durationMs: 300000 },
       'http://192.168.1.1:8080',
-      'swift-wave-402',
+      { kind: 'slug', value: 'swift-wave-402' },
       false,
     );
     expect(result.lanUrl).toBe('http://192.168.1.1:8080/swift-wave-402');

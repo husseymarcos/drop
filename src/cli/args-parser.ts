@@ -1,13 +1,22 @@
-import { Command } from 'commander';
-import type { CliArgs, DropConfig } from '../types.ts';
+import { parseArgs } from 'node:util';
+import type { DropConfig } from '../types.ts';
 import { DEFAULT_PORT } from '../types.ts';
+import { toMessage } from '../utils.ts';
 import { printHelp } from './help.ts';
 
 export const parseCliArgs = (argv: string[]): DropConfig => {
   try {
-    const program = buildProgram();
-    program.parse(argv, { from: 'user' });
-    const opts = program.opts<CliArgs>();
+    const { values: opts } = parseArgs({
+      args: argv,
+      options: {
+        file: { type: 'string', short: 'f' },
+        time: { type: 'string', short: 't' },
+        port: { type: 'string', short: 'p' },
+        alias: { type: 'string', short: 'a' },
+        help: { type: 'boolean', short: 'h' },
+      },
+      strict: true,
+    });
 
     if (opts.help) {
       printHelp();
@@ -22,37 +31,29 @@ export const parseCliArgs = (argv: string[]): DropConfig => {
     });
   }
   catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to parse arguments: ${message}`);
+    throw new Error(`Failed to parse arguments: ${toMessage(error)}`);
   }
 };
 
-const buildProgram = (): Command =>
-  new Command()
-    .option('-f, --file <path>', 'Path to the file to share')
-    .option('-t, --time <duration>', 'Time until the drop expires')
-    .option('-p, --port <number>', 'Port to run the server on')
-    .option('-a, --alias <hostname>', 'Alias hostname to display in the share URL')
-    .option('-h, --help', 'Show help message')
-    .exitOverride();
-
 const DEFAULT_DURATION = '5m';
 
-const getConfig = (args: CliArgs): DropConfig => {
+const getConfig = (args: {
+  file?: string;
+  time?: string;
+  port?: string;
+  alias?: string;
+}): DropConfig => {
   const durationMs = parseTime(args.time ?? DEFAULT_DURATION);
   const alias = parseAlias(args.alias);
-  const port
-    = args.port !== undefined
-      ? parsePort(args.port)
-      : alias !== undefined
-        ? 80
-        : DEFAULT_PORT;
-  return {
-    filePath: args.file,
-    durationMs,
-    port,
-    alias,
-  };
+  const port = defaultPort(args.port, alias);
+  return { filePath: args.file, durationMs, port, alias };
+};
+
+/** Chooses the explicit port, the HTTP default for aliases, or the application default. */
+const defaultPort = (portValue: string | undefined, alias: string | undefined): number => {
+  if (portValue !== undefined) return parsePort(portValue);
+  if (alias !== undefined) return 80;
+  return DEFAULT_PORT;
 };
 
 const parseTime = (timeValue: string): number => {

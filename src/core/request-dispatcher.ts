@@ -1,5 +1,4 @@
-import { routeRequest } from './router.ts';
-import { DropStore } from './drop-store.ts';
+import { rootAddress, slugAddress } from '../drop.ts';
 import { DownloadHandler } from './handlers/download-handler.ts';
 import { UploadHandler } from './handlers/upload-handler.ts';
 import { renderNotFound, renderTemplate } from './template-renderer.ts';
@@ -8,29 +7,29 @@ export class RequestDispatcher {
   constructor(
     private uploadHandler: UploadHandler,
     private downloadHandler: DownloadHandler,
-    private store: DropStore,
-    private serveAtRoot: boolean,
     private durationMs: number,
   ) {}
 
   async dispatch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const route = routeRequest(request.method, url.pathname, url.searchParams);
+    const { pathname, searchParams } = url;
 
-    switch (route.kind) {
-      case 'static-css':
-        return this.serveStatic('../views/common.css', 'text/css; charset=utf-8');
-      case 'static-js':
-        return this.serveStatic('../views/countdown.js', 'application/javascript; charset=utf-8');
-      case 'upload':
-        return this.uploadHandler.handle(request);
-      case 'download':
-        return this.downloadHandler.handle(route.slug, route.download);
-      case 'root':
-        return this.handleRoot(url.searchParams);
-      case 'not-found':
-        return renderNotFound();
+    if (request.method === 'GET' && pathname === '/_/common.css') {
+      return this.serveStatic('../views/common.css', 'text/css; charset=utf-8');
     }
+    if (request.method === 'GET' && pathname === '/_/countdown.js') {
+      return this.serveStatic('../views/countdown.js', 'application/javascript; charset=utf-8');
+    }
+    if (request.method === 'POST' && pathname === '/_/upload') {
+      return this.uploadHandler.create(request);
+    }
+    if (request.method !== 'GET') return renderNotFound();
+    if (pathname === '/') return this.handleRoot(searchParams);
+
+    return this.downloadHandler.show(
+      slugAddress(pathname.slice(1)),
+      searchParams.get('download') === '1',
+    );
   }
 
   private serveStatic(path: string, contentType: string): Response {
@@ -40,11 +39,12 @@ export class RequestDispatcher {
   }
 
   private async handleRoot(searchParams: URLSearchParams): Promise<Response> {
-    if (this.serveAtRoot) {
-      const drop = this.store.find('');
-      if (drop) {
-        return this.downloadHandler.handle('', searchParams.get('download') === '1');
-      }
+    const response = await this.downloadHandler.show(
+      rootAddress,
+      searchParams.get('download') === '1',
+    );
+    if (response.status !== 404) {
+      return response;
     }
 
     const html = await renderTemplate('root', {

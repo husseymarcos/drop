@@ -1,4 +1,5 @@
 import { Bonjour, type Service } from 'bonjour-service';
+import { toMessage } from '../utils.ts';
 
 export const toMdnsHost = (alias: string): string => `${alias}.local`;
 
@@ -20,8 +21,7 @@ export class BonjourMdnsPublisher {
       txt: { app: 'drop' },
     });
     this.service.on('error', (error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`mDNS publish warning: ${message}`);
+      console.warn(`mDNS publish warning: ${toMessage(error)}`);
     });
   }
 

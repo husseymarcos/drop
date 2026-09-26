@@ -4,7 +4,7 @@
 
 - **Input:** CLI with `drop -f <file> -t <time>`.
 - **Output:** An ephemeral local URL (e.g. `http://<IP>:<port>/<slug>`) that another device on the same network can use to download the file.
-- **Constraint:** After the download completes or `-t` expires, the server shuts down and the data is wiped (RAM/temp), without persisting to disk.
+- **Constraint:** When `-t` expires, the server shuts down and the data is wiped (RAM/temp), without persisting to disk.
 
 Nothing should be uploaded to the internet; all traffic stays on the LAN.
 
@@ -21,7 +21,7 @@ drop -f <file> -t <time>
 | `-p`, `--port` | Port to run the server on (default: 8080). |
 | `-h`, `--help` | Show help message. |
 
-The process must: read the file, start the HTTP server, generate a unique slug, print the local URL and, when `-t` expires or after the first successful download, shut down and clean up.
+The process must: read the file, start the HTTP server, generate a unique slug, print the local URL and, when `-t` expires, shut down and clean up.
 
 ## Stack and conventions
 
@@ -39,65 +39,39 @@ The process must: read the file, start the HTTP server, generate a unique slug, 
 
 ## Architecture Overview
 
-The codebase follows a **modular, dependency-injected architecture** designed for extensibility and testability:
+The codebase is a set of small, single-responsibility classes in an MVC-like shape. Details in ARCHITECTURE.md.
 
-### Core Components
+### Model (domain)
 
-1. **FileLoader** (`src/core/file-loader.ts`)
-   - Interface for loading files
-   - `InMemoryFileLoader`: Loads files into memory without disk persistence
-   - MIME type detection
+- **Drop** (`src/drop.ts`) — the entity: address, file name, size, MIME type, data, expiry. Owns `sizeLabel`. A drop is addressed at the root path (alias mode) or by a unique slug.
+- **DropLedger** (`src/core/drop-ledger.ts`) — in-memory record of live drops; assigns identity and expiry, hides expired drops, and clears on shutdown. Clock and slug source are injected.
+- **FileLoader** (`src/core/file-loader.ts`) — reads files/directories into RAM as `DropContent` (directories via `buildTarArchive`).
+- **SlugGenerator** (`src/core/slug-generator.ts`) — stateless, human-readable slug candidates (e.g. `swift-wave-402`).
+- **buildTarArchive** (`src/core/tar-archive.ts`) — turns named entries into a `.tar` `DropContent`.
 
-2. **SlugGenerator** (`src/core/slug-generator.ts`)
-   - Generates unique, human-readable slugs (e.g., `swift-wave-402`)
-   - Prevents collisions
+### Router + Controllers
 
-3. **SessionManager** (`src/core/session-manager.ts`)
-   - Manages drop session lifecycle
-   - Automatic cleanup of expired sessions
-   - Tracks download counts
+- **RequestDispatcher** (`src/core/request-dispatcher.ts`) — maps routes to controllers; turns a path into a `DropAddress`; serves static assets and the root view.
+- **DownloadHandler.show / UploadHandler.create** (`src/core/handlers/`) — `GET /:slug` (or `GET /` in alias mode) and `POST /_/upload`.
 
-4. **DropServer** (`createDropServer` in `src/core/server.ts`)
-   - HTTP server using Bun's native server; `BunDropServer` is an internal implementation class
-   - **`router.ts`**: pure `routeRequest(method, pathname, searchParams)` → route kind
-   - **`upload-handler.ts`**: `handleUpload` / single-file and archive upload helpers
-   - **`template-renderer.ts`**: HTML templates with `{{VAR}}` substitution
-   - Serves files under unique slugs; port retry on `EADDRINUSE`; graceful shutdown
+### Views
 
-### Utility Modules
-
-1. **Logger** (`src/utils/logger.ts`)
-   - Configurable log levels (debug, info, warn, error)
-   - Timestamped output
-
-2. **TimeParser** (`src/utils/time-parser.ts`)
-   - Parses flexible duration formats
-   - Human-readable formatting
+- `src/views/*.html|css|js` + **template-renderer.ts** (`{{VAR}}` substitution).
 
 ### CLI Layer
 
-1. **ArgsParser** (`src/cli/args-parser.ts`)
-   - Uses `commander` for option parsing
-   - Validation and error handling via parseDropConfig
-
-2. **DropCli** (`src/cli/cli.ts`)
-   - Orchestrates components
-   - Signal handling (SIGINT, SIGTERM)
-   - User-friendly output
+- **parseCliArgs** (`src/cli/args-parser.ts`) — `node:util.parseArgs` parsing; duration formats (`5m`, `1h`, `90s`, `300`).
+- **DropCli** (`src/cli/cli.ts`) — orchestrates lifecycle, signal handling, friendly output.
+- **DropServer** (`src/core/server.ts`) — `Bun.serve()` wrapper with port retry on `EADDRINUSE`.
+- **BonjourMdnsPublisher** (`src/core/mdns.ts`) — optional `--alias` mDNS publishing.
 
 ## Design Principles
 
 1. **Dependency Injection**: Components receive dependencies via constructors, enabling easy mocking for tests.
-
-2. **Interface Segregation**: Core functionality defined by interfaces (`FileLoader`, `SessionManager`, `DropServer`).
-
-3. **Error Handling**: Custom error classes with descriptive messages and optional cause chains.
-
-4. **Memory Safety**: Files loaded into RAM only; no disk persistence.
-
-5. **Graceful Shutdown**: Proper cleanup of resources on exit or signal.
-
-6. **Extensibility**: Easy to add new storage backends, server implementations, or CLI features.
+2. **Memory Safety**: Files loaded into RAM only; no disk persistence.
+3. **Graceful Shutdown**: Proper cleanup of resources on exit or signal.
+4. **No barrel files**: export directly from where things are defined.
+5. **Prefer Bun libraries**: use built-in Bun APIs before external dependencies.
 
 ## Testing Strategy (TDD)
 
@@ -108,8 +82,8 @@ Tests are written following **Test-Driven Development** principles, focusing on 
 1. **CLI parsing:** `-f <file>` and `-t <time>`; parse duration (e.g. `5m`, `1h`, `90s`, `300`).
 2. **Minimal HTTP server** listening on a port (e.g. 8080) that serves a single file under a unique slug.
 3. **File loading** into memory (or ephemeral temp) at startup; do not persist to disk.
-4. **Download** via GET on `/:slug`; serve the file and, after a full download, consider the drop consumed.
-5. **Time‑based expiration:** timer based on `-t`; when it expires (or after the first download), close the server and release resources.
+4. **Download** via GET on `/:slug`; serve the file. Downloads do not consume the drop.
+5. **Time‑based expiration:** timer based on `-t`; when it expires, close the server and release resources.
 6. **Optional:** Web UI (drag & drop) that uses the same server and shows the URL to copy.
 
 ## Things to avoid
@@ -123,4 +97,3 @@ Tests are written following **Test-Driven Development** principles, focusing on 
 - Read this document when starting a session in the repo.
 - Use `README.md` for product vision and end‑user usage.
 - Follow the rules in `.cursor/rules/` when applicable.
-- See `index.old.ts` for the previous implementation (kept for reference).

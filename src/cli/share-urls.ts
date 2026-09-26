@@ -1,13 +1,14 @@
+import { type DropAddress, pathFor } from '../drop.ts';
 import type { DropConfig } from '../types.ts';
 import { toMdnsHost } from '../core/mdns.ts';
 
 export function buildShareUrls(
   config: DropConfig,
   baseUrl: string,
-  sessionId: string,
+  address: DropAddress,
   includeAlias: boolean,
 ): { lanUrl: string; aliasUrl?: string } {
-  const path = sessionId ? `/${sessionId}` : '/';
+  const path = pathFor(address);
   const base = new URL(baseUrl);
   const lanUrl = new URL(path, base).toString();
 

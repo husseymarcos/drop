@@ -130,7 +130,7 @@
         });
       };
 
-      const uploadDirectory = async (files, directoryName) => {
+      const uploadFiles = async (files, directoryName) => {
         if (!files || files.length === 0) return;
 
         const formData = new FormData();
@@ -156,14 +156,15 @@
         }
 
         const payload = await response.json();
-        if (!payload || !payload.slug) {
+        if (!payload || !payload.path) {
           return;
         }
 
-        addUploadedCard(payload, null, {
-          isDirectory: true,
-          displayName: directoryName,
-        });
+        addUploadedCard(
+          payload,
+          directoryName ? null : files[0].file,
+          directoryName ? { isDirectory: true, displayName: directoryName } : undefined,
+        );
       };
 
       uploadCard.addEventListener('drop', async (event) => {
@@ -195,7 +196,7 @@
             if (allFiles.length > 0) {
               const firstPath = allFiles[0].relativePath || allFiles[0].file.name;
               const directoryName = firstPath.split('/')[0] || entry.name || 'directorio';
-              await uploadDirectory(allFiles, directoryName);
+              await uploadFiles(allFiles, directoryName);
               return;
             }
           }
@@ -208,7 +209,7 @@
         for (const file of fileArray) {
           // Para archivos "normales" (no directorios), cada uno se sube como drop independiente
           // eslint-disable-next-line no-await-in-loop
-          await uploadFile(file);
+          await uploadFiles([{ file, relativePath: file.name }]);
         }
       });
 
@@ -236,12 +237,12 @@
           const firstPath = normalized[0].relativePath;
           const directoryName = firstPath.split('/')[0] || 'directorio';
 
-          await uploadDirectory(normalized, directoryName);
+          await uploadFiles(normalized, directoryName);
         } else {
           for (const file of allFiles) {
             // Sube cada archivo como drop independiente
             // eslint-disable-next-line no-await-in-loop
-            await uploadFile(file);
+            await uploadFiles([{ file, relativePath: file.name }]);
           }
         }
 
@@ -257,27 +258,6 @@
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         const value = bytes / (k ** i);
         return `${value.toFixed(value >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
-      };
-
-      const uploadFile = async (file) => {
-        const formData = new FormData();
-        formData.set('file', file, file.name);
-
-        const response = await fetch('/_/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = await response.json();
-        if (!payload || !payload.slug) {
-          return;
-        }
-
-        addUploadedCard(payload, file);
       };
 
       const addUploadedCard = (payload, file, options) => {
@@ -335,7 +315,7 @@
         }
 
         const link = document.createElement('a');
-        link.href = `/${payload.slug}?download=1`;
+        link.href = `${payload.path}?download=1`;
         link.className = 'button';
         link.textContent = 'Descargar';
         link.addEventListener('click', (event) => {

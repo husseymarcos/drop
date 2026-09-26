@@ -1,11 +1,13 @@
-import { DropStore } from '../drop-store.ts';
+import { type DropAddress, pathFor } from '../../drop.ts';
+import { DropLedger } from '../drop-ledger.ts';
 import { renderNotFound, renderTemplate } from '../template-renderer.ts';
 
 export class DownloadHandler {
-  constructor(private store: DropStore) {}
+  constructor(private ledger: DropLedger) {}
 
-  async handle(slug: string, shouldDownload: boolean): Promise<Response> {
-    const drop = this.store.find(slug);
+  /** Renders a drop or returns its file response when download is requested. */
+  async show(address: DropAddress, shouldDownload: boolean): Promise<Response> {
+    const drop = this.ledger.resolve(address);
 
     if (!drop) {
       return renderNotFound();
@@ -14,7 +16,7 @@ export class DownloadHandler {
     if (!shouldDownload) {
       const html = await renderTemplate('download', {
         filename: drop.fileName,
-        slug: drop.id,
+        path: pathFor(drop.address),
         expiresAt: drop.expiresAt.toISOString(),
       });
       return new Response(html, {
@@ -22,8 +24,7 @@ export class DownloadHandler {
       });
     }
 
-    drop.consume();
-    console.info(`Session download registered: ${drop.id} (downloads: ${drop.downloadCount})`);
+    console.info(`Download served: ${pathFor(drop.address)}`);
 
     return new Response(drop.data, {
       headers: {

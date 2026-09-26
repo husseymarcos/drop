@@ -1,15 +1,15 @@
-import { Drop } from '../../drop.ts';
-import { DropFactory } from '../drop-factory.ts';
-import { DropStore } from '../drop-store.ts';
+import { type DropContent, pathFor } from '../../drop.ts';
+import { DropLedger } from '../drop-ledger.ts';
+import { buildTarArchive } from '../tar-archive.ts';
 
 export class UploadHandler {
   constructor(
-    private factory: DropFactory,
-    private store: DropStore,
+    private ledger: DropLedger,
     private durationMs: number,
   ) {}
 
-  async handle(request: Request): Promise<Response> {
+  /** Creates a drop from the files in a multipart upload request. */
+  async create(request: Request): Promise<Response> {
     const formData = await request.formData() as globalThis.FormData;
     const files = formData.getAll('file').filter((value) => value instanceof File) as File[];
 
@@ -18,14 +18,14 @@ export class UploadHandler {
     }
 
     const directoryName = this.extractDirectoryName(formData);
-    const drop = files.length === 1 && !directoryName
-      ? await this.handleSingle(files[0]!)
-      : await this.handleMultiple(files, directoryName);
+    const content = files.length === 1 && !directoryName
+      ? await this.singleContent(files[0]!)
+      : await this.archiveContent(files, directoryName);
 
-    this.store.add(drop.id, drop);
+    const drop = this.ledger.create(content, { durationMs: this.durationMs });
 
     return new Response(JSON.stringify({
-      slug: drop.id,
+      path: pathFor(drop.address),
       fileName: drop.fileName,
       expiresAt: drop.expiresAt.toISOString(),
       fileSize: drop.fileSize,
@@ -42,33 +42,22 @@ export class UploadHandler {
       : undefined;
   }
 
-  private async handleSingle(file: File): Promise<Drop> {
-    const arrayBuffer = await file.arrayBuffer();
-    return this.factory.fromUpload(
-      file.name || 'upload',
-      Buffer.from(arrayBuffer),
-      this.durationMs,
-    );
+  private async singleContent(file: File): Promise<DropContent> {
+    return {
+      fileName: file.name || 'upload',
+      data: Buffer.from(await file.arrayBuffer()),
+      mimeType: (file.type || 'application/octet-stream').split(';')[0]!,
+    };
   }
 
-  private async handleMultiple(files: File[], directoryName?: string): Promise<Drop> {
-    const archiveEntries: Record<string, Uint8Array> = {};
+  private async archiveContent(files: File[], directoryName?: string): Promise<DropContent> {
+    const entries: Record<string, Uint8Array> = {};
 
     for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer();
-      archiveEntries[file.name] = new Uint8Array(arrayBuffer);
+      entries[file.name] = new Uint8Array(await file.arrayBuffer());
     }
 
-    const archive = new Bun.Archive(archiveEntries);
-    const archiveBlob = await archive.blob();
-    const archiveBuffer = Buffer.from(await archiveBlob.arrayBuffer());
-
     const name = directoryName ?? (files[0]?.name?.split('/')[0] || 'directory');
-
-    return this.factory.fromUpload(
-      `${name}.tar`,
-      archiveBuffer,
-      this.durationMs,
-    );
+    return buildTarArchive(entries, name);
   }
 }

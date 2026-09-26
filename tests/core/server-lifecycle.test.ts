@@ -1,28 +1,21 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
-import { DropFactory } from '../../src/core/drop-factory.ts';
-import { DropStore } from '../../src/core/drop-store.ts';
+import type { DropLedger } from '../../src/core/drop-ledger.ts';
+import { createTestServer } from '../setup';
 
 describe('DropServer lifecycle', () => {
   let server: DropServer;
-  let store: DropStore;
+  let ledger: DropLedger;
 
   afterEach(async () => {
     if (server) {
       await server.stop();
     }
-    store?.clear();
+    ledger?.clear();
   });
 
   it('start() returns url and port', async () => {
-    store = new DropStore();
-    const factory = new DropFactory();
-    server = createDropServer(store, factory, {
-      port: 0,
-      serveAtRoot: false,
-      durationMs: 60_000,
-    });
+    ({ server, ledger } = createTestServer());
 
     const info = await server.start();
 
@@ -33,29 +26,20 @@ describe('DropServer lifecycle', () => {
   });
 
   it('selects the next port when the preferred port is in use', async () => {
-    store = new DropStore();
-    const factory = new DropFactory();
-    const first = createDropServer(store, factory, {
-      port: 0,
-      serveAtRoot: false,
-      durationMs: 60_000,
-    });
-    const { port: taken } = await first.start();
+    const first = createTestServer();
+    const { port: taken } = await first.server.start();
 
     try {
-      const second = createDropServer(store, factory, {
-        port: taken,
-        serveAtRoot: false,
-        durationMs: 60_000,
-      });
-      const { port: chosen } = await second.start();
+      const second = createTestServer({ port: taken });
+      const { port: chosen } = await second.server.start();
 
       expect(chosen).not.toBe(taken);
 
-      server = second;
+      server = second.server;
+      ledger = second.ledger;
     }
     finally {
-      await first.stop();
+      await first.server.stop();
     }
   });
 });

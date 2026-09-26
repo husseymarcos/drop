@@ -1,9 +1,9 @@
 import { networkInterfaces } from 'node:os';
-import { DropFactory } from './drop-factory.ts';
-import { DropStore } from './drop-store.ts';
+import { DropLedger } from './drop-ledger.ts';
 import { RequestDispatcher } from './request-dispatcher.ts';
 import { DownloadHandler } from './handlers/download-handler.ts';
 import { UploadHandler } from './handlers/upload-handler.ts';
+import { toMessage } from '../utils.ts';
 
 export class DropServer {
   private server?: ReturnType<typeof Bun.serve>;
@@ -34,7 +34,7 @@ export class DropServer {
           nextPort++;
           continue;
         }
-        const err = error instanceof Error ? error : new Error(String(error));
+        const err = error instanceof Error ? error : new Error(toMessage(error));
         throw new Error(`Failed to start server on port ${nextPort}`, { cause: err });
       }
     }
@@ -78,15 +78,12 @@ export class DropServer {
 }
 
 export function createDropServer(
-  store: DropStore,
-  factory: DropFactory,
-  config: { port?: number; durationMs: number; serveAtRoot?: boolean },
+  ledger: DropLedger,
+  config: { port?: number; durationMs: number },
 ): DropServer {
   const dispatcher = new RequestDispatcher(
-    new UploadHandler(factory, store, config.durationMs),
-    new DownloadHandler(store),
-    store,
-    config.serveAtRoot ?? false,
+    new UploadHandler(ledger, config.durationMs),
+    new DownloadHandler(ledger),
     config.durationMs,
   );
 

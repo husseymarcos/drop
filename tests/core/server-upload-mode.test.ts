@@ -1,30 +1,21 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
-import { DropFactory } from '../../src/core/drop-factory.ts';
-import { DropStore } from '../../src/core/drop-store.ts';
+import type { DropLedger } from '../../src/core/drop-ledger.ts';
+import { createTestServer } from '../setup';
 
 describe('Root upload mode', () => {
   let server: DropServer;
-  let store: DropStore;
+  let ledger: DropLedger;
 
   afterEach(async () => {
     if (server) {
       await server.stop();
     }
-    store?.clear();
+    ledger?.clear();
   });
 
   it('renders a root view with a drag-and-drop upload card', async () => {
-    store = new DropStore();
-    const factory = new DropFactory();
-
-    server = createDropServer(store, factory, {
-      port: 0,
-      serveAtRoot: false,
-      durationMs: 5 * 60 * 1000,
-    });
-
+    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000 }));
     const { url: baseUrl } = await server.start();
 
     const res = await fetch(`${baseUrl}/`);
@@ -37,16 +28,8 @@ describe('Root upload mode', () => {
     expect(html).toContain('data-expires-at="');
   });
 
-  it('accepts uploads and returns a slug that can be used to access the download page', async () => {
-    store = new DropStore();
-    const factory = new DropFactory();
-
-    server = createDropServer(store, factory, {
-      port: 0,
-      serveAtRoot: false,
-      durationMs: 5 * 60 * 1000,
-    });
-
+  it('accepts uploads and returns a path that can be used to access the download page', async () => {
+    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000 }));
     const { url: baseUrl } = await server.start();
 
     const formData = new FormData();
@@ -61,28 +44,19 @@ describe('Root upload mode', () => {
 
     expect(uploadRes.status).toBe(200);
 
-    const payload = await uploadRes.json() as { slug: string };
+    const payload = await uploadRes.json() as { path: string };
 
-    expect(typeof payload.slug).toBe('string');
-    expect(payload.slug.length).toBeGreaterThan(0);
+    expect(payload.path.startsWith('/')).toBe(true);
 
-    const pageRes = await fetch(`${baseUrl}/${payload.slug}`);
+    const pageRes = await fetch(`${baseUrl}${payload.path}`);
     expect(pageRes.status).toBe(200);
     const pageHtml = await pageRes.text();
 
     expect(pageHtml).toContain('upload.txt');
   });
 
-  it('accepts directory uploads by zipping multiple files into a single downloadable archive', async () => {
-    store = new DropStore();
-    const factory = new DropFactory();
-
-    server = createDropServer(store, factory, {
-      port: 0,
-      serveAtRoot: false,
-      durationMs: 5 * 60 * 1000,
-    });
-
+  it('accepts directory uploads by archiving multiple files into a single downloadable archive', async () => {
+    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000 }));
     const { url: baseUrl } = await server.start();
 
     const formData = new FormData();
@@ -105,13 +79,12 @@ describe('Root upload mode', () => {
 
     expect(uploadRes.status).toBe(200);
 
-    const payload = await uploadRes.json() as { slug: string; fileName: string };
+    const payload = await uploadRes.json() as { path: string; fileName: string };
 
-    expect(typeof payload.slug).toBe('string');
-    expect(payload.slug.length).toBeGreaterThan(0);
+    expect(payload.path.startsWith('/')).toBe(true);
     expect(payload.fileName).toContain(dirName);
 
-    const pageRes = await fetch(`${baseUrl}/${payload.slug}`);
+    const pageRes = await fetch(`${baseUrl}${payload.path}`);
     expect(pageRes.status).toBe(200);
     const pageHtml = await pageRes.text();
 
@@ -119,17 +92,8 @@ describe('Root upload mode', () => {
   });
 
   it('respects the configured durationMs for upload sessions', async () => {
-    store = new DropStore();
-    const factory = new DropFactory();
-
     const configuredDurationMs = 3000;
-
-    server = createDropServer(store, factory, {
-      port: 0,
-      serveAtRoot: false,
-      durationMs: configuredDurationMs,
-    });
-
+    ({ server, ledger } = createTestServer({ durationMs: configuredDurationMs }));
     const { url: baseUrl } = await server.start();
 
     const formData = new FormData();
@@ -146,9 +110,9 @@ describe('Root upload mode', () => {
 
     expect(uploadRes.status).toBe(200);
 
-    const payload = await uploadRes.json() as { slug: string };
+    const payload = await uploadRes.json() as { path: string };
 
-    const drop = store.find(payload.slug);
+    const drop = ledger.resolve({ kind: 'slug', value: payload.path.slice(1) });
     expect(drop).toBeDefined();
 
     if (!drop) return;

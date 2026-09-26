@@ -21,11 +21,10 @@ describe('FileLoader directory support', () => {
     const dirPath = await createTempDirectoryWithFiles();
     const loader = new FileLoader();
 
-    const expiresAt = new Date(Date.now() + 60_000);
-    const drop = await loader.load(dirPath, 'session-1', expiresAt);
+    const content = await loader.load(dirPath);
 
-    expect(drop.fileName).toBe(`${basename(dirPath)}.tar`);
-    expect(drop.mimeType).toBe('application/x-tar');
-    expect(drop.fileSize).toBeGreaterThan(0);
+    expect(content.fileName).toBe(`${basename(dirPath)}.tar`);
+    expect(content.mimeType).toBe('application/x-tar');
+    expect(content.data.length).toBeGreaterThan(0);
   });
 });

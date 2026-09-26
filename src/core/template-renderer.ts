@@ -2,7 +2,7 @@ export type TemplateName = 'root' | 'download' | 'not-found';
 
 export type TemplateContext = {
   filename?: string;
-  slug?: string;
+  path?: string;
   expiresAt?: string;
 };
 
@@ -21,7 +21,7 @@ export async function renderTemplate(
 
   let result = template;
   result = result.replace(/{{FILENAME}}/g, context.filename ?? '');
-  result = result.replace(/{{SLUG}}/g, context.slug ?? '');
+  result = result.replace(/{{PATH}}/g, context.path ?? '');
   result = result.replace(/{{EXPIRES_AT}}/g, context.expiresAt ?? '');
 
   return result;

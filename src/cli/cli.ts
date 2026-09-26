@@ -1,10 +1,11 @@
 import { resolve } from 'node:path';
 import { DropServer, createDropServer } from '../core/server.ts';
 import { BonjourMdnsPublisher, toMdnsHost } from '../core/mdns.ts';
-import { DropFactory } from '../core/drop-factory.ts';
-import { DropStore } from '../core/drop-store.ts';
+import { DropLedger } from '../core/drop-ledger.ts';
+import { FileLoader } from '../core/file-loader.ts';
+import { rootAddress } from '../drop.ts';
 import type { DropConfig } from '../types.ts';
-import { formatBytes } from '../utils.ts';
+import { toMessage } from '../utils.ts';
 import { parseCliArgs } from './args-parser.ts';
 import { buildShareUrls } from './share-urls.ts';
 
@@ -18,82 +19,72 @@ export class DropCli {
       await this.validateAndRun(config);
     }
     catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(message);
+      console.error(toMessage(error));
       console.error('\nRun with -h or --help for usage information.');
       process.exit(1);
     }
   }
 
   private async validateAndRun(config: DropConfig): Promise<void> {
-    const store = new DropStore();
-    const factory = new DropFactory();
+    const ledger = new DropLedger();
 
-    const server = createDropServer(store, factory, {
+    const server = createDropServer(ledger, {
       port: config.port,
-      serveAtRoot: !!config.alias,
       durationMs: config.durationMs,
     });
 
     const { url: baseUrl, port: activePort } = await server.start();
-
     const aliasPublished = this.publishAlias(config, activePort);
 
     if (config.filePath) {
-      config.filePath = resolve(config.filePath);
-
-      const drop = await factory.fromFile(config.filePath, config.durationMs, config.alias);
-      store.add(drop.id, drop);
-      const urls = buildShareUrls(config, baseUrl, drop.id, aliasPublished);
+      const content = await new FileLoader().load(resolve(config.filePath));
+      const drop = ledger.create(content, {
+        durationMs: config.durationMs,
+        address: config.alias ? rootAddress : undefined,
+      });
+      const urls = buildShareUrls(config, baseUrl, drop.address, aliasPublished);
 
       console.log('\n✓ Drop created successfully!\n');
       console.log(`File: ${drop.fileName}`);
-      console.log(`Size: ${formatBytes(drop.fileSize)}`);
+      console.log(`Size: ${drop.sizeLabel}`);
       console.log(`Expires: ${drop.expiresAt.toISOString()}`);
-      if (urls.aliasUrl) {
-        console.log(`\nAlias URL: ${urls.aliasUrl}`);
-        console.log(`LAN URL:   ${urls.lanUrl}\n`);
-      }
-      else {
-        console.log(`\nURL: ${urls.lanUrl}\n`);
-      }
+      this.printUrls(urls, 'URL');
       console.log('Waiting for downloads until expiration...\n');
     }
     else {
       console.log('\n✓ Drop server ready for uploads!\n');
-
-      if (aliasPublished && config.alias) {
-        const urls = buildShareUrls(config, baseUrl, '', true);
-        if (urls.aliasUrl) {
-          console.log(`Alias Upload UI: ${urls.aliasUrl}`);
-          console.log(`LAN Upload UI:   ${urls.lanUrl}\n`);
-        }
-        else {
-          console.log(`Upload UI: ${baseUrl}/\n`);
-        }
-      }
-      else {
-        console.log(`Upload UI: ${baseUrl}/\n`);
-      }
-
+      this.printUrls(buildShareUrls(config, baseUrl, rootAddress, aliasPublished), 'Upload UI');
       console.log(`Expires: in ${config.durationMs / 1000}s\n`);
     }
 
-    this.setupShutdownHandlers(server, store);
-    await this.waitForExpiration(config.durationMs);
-    await this.shutdown(server, store);
+    this.setupShutdownHandlers(server, ledger);
+    await Bun.sleep(config.durationMs);
+    await this.shutdown(server, ledger);
   }
 
-  private setupShutdownHandlers(server: DropServer, store: DropStore): void {
+  /** Prints the LAN URL and, when available, its mDNS alias. */
+  private printUrls(
+    urls: { lanUrl: string; aliasUrl?: string },
+    singleLabel: string,
+  ): void {
+    if (urls.aliasUrl) {
+      console.log(`\nAlias URL: ${urls.aliasUrl}`);
+      console.log(`LAN URL:   ${urls.lanUrl}\n`);
+    }
+    else {
+      console.log(`\n${singleLabel}: ${urls.lanUrl}\n`);
+    }
+  }
+
+  private setupShutdownHandlers(server: DropServer, ledger: DropLedger): void {
     const shutdown = (signal: string) => {
       if (this.shutdownInProgress) return;
       this.shutdownInProgress = true;
       console.log(`Received ${signal}, shutting down...`);
-      void this.shutdown(server, store)
+      void this.shutdown(server, ledger)
         .then(() => process.exit(0))
         .catch((error) => {
-          const message = error instanceof Error ? error.message : String(error);
-          console.error(`Error during shutdown: ${message}`);
+          console.error(`Error during shutdown: ${toMessage(error)}`);
           process.exit(1);
         });
     };
@@ -102,14 +93,10 @@ export class DropCli {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
   }
 
-  private async waitForExpiration(durationMs: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, durationMs));
-  }
-
-  private async shutdown(server: DropServer, store: DropStore): Promise<void> {
+  private async shutdown(server: DropServer, ledger: DropLedger): Promise<void> {
     await this.mdnsPublisher.stop();
     await server.stop();
-    store.clear();
+    ledger.clear();
     console.log('Goodbye!');
   }
 
@@ -120,8 +107,9 @@ export class DropCli {
       return true;
     }
     catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`Could not publish mDNS alias "${toMdnsHost(config.alias)}": ${message}`);
+      console.warn(
+        `Could not publish mDNS alias "${toMdnsHost(config.alias)}": ${toMessage(error)}`,
+      );
       return false;
     }
   }

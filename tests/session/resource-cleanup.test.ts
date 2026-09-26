@@ -1,31 +1,30 @@
 import { describe, expect, it } from 'bun:test';
-import { DropFactory } from '../../src/core/drop-factory.ts';
-import { DropStore } from '../../src/core/drop-store.ts';
-import { fileConfig } from '../setup.ts';
+import { DropLedger } from '../../src/core/drop-ledger.ts';
+import type { DropContent } from '../../src/drop.ts';
+
+const content: DropContent = {
+  fileName: 'f.txt',
+  data: Buffer.from('a'),
+  mimeType: 'text/plain',
+};
 
 describe('Resource cleanup', () => {
-  it('removes all sessions on clear', async () => {
-    const store = new DropStore();
-    const factory = new DropFactory();
-
-    const drops = await Promise.all([
-      factory.fromFile(fileConfig().filePath!, 300000),
-      factory.fromFile(fileConfig().filePath!, 300000),
-      factory.fromFile(fileConfig().filePath!, 300000),
-    ]);
+  it('removes all drops on clear', () => {
+    const ledger = new DropLedger();
+    const drops = [
+      ledger.create(content, { durationMs: 300_000 }),
+      ledger.create(content, { durationMs: 300_000 }),
+      ledger.create(content, { durationMs: 300_000 }),
+    ];
 
     for (const drop of drops) {
-      store.add(drop.id, drop);
+      expect(ledger.resolve(drop.address)).toBeDefined();
     }
 
-    for (const drop of drops) {
-      expect(store.find(drop.id)).toBeDefined();
-    }
-
-    store.clear();
+    ledger.clear();
 
     for (const drop of drops) {
-      expect(store.find(drop.id)).toBeUndefined();
+      expect(ledger.resolve(drop.address)).toBeUndefined();
     }
   });
 });
