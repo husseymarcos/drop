@@ -1,31 +1,29 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import { DropFactory } from '../../src/core/drop-factory.ts';
-import { DropStore } from '../../src/core/drop-store.ts';
-import { fileConfig } from '../setup.ts';
+import { describe, expect, it } from 'bun:test';
+import { DropLedger } from '../../src/core/drop-ledger.ts';
+import type { DropContent } from '../../src/drop.ts';
 
-describe('Session with alias (root path)', () => {
-  let store: DropStore;
-  let factory: DropFactory;
+const content: DropContent = {
+  fileName: 'bedtimestory.txt',
+  data: Buffer.from('a'),
+  mimeType: 'text/plain',
+};
 
-  beforeEach(() => {
-    store = new DropStore();
-    factory = new DropFactory();
+describe('Drop with alias (root address)', () => {
+  it('stores a drop at the root address when alias is used', () => {
+    const ledger = new DropLedger();
+    const drop = ledger.create(content, {
+      durationMs: 300_000,
+      address: { kind: 'root' },
+    });
+
+    expect(drop.address).toEqual({ kind: 'root' });
+    expect(ledger.resolve({ kind: 'root' })).toBeDefined();
   });
 
-  it('creates drop with empty id when alias is set', async () => {
-    const config = fileConfig('5m', '-a', 'john');
-    const drop = await factory.fromFile(config.filePath!, config.durationMs, config.alias);
-    store.add(drop.id, drop);
-    expect(drop.id).toBe('');
-  });
+  it('does not resolve a slug drop at the root address', () => {
+    const ledger = new DropLedger(() => 'swift-wave-402');
+    ledger.create(content, { durationMs: 300_000 });
 
-  it('resolves drop at root via find("") when alias was used', async () => {
-    const config = fileConfig('5m', '-a', 'john');
-    const drop = await factory.fromFile(config.filePath!, config.durationMs, config.alias);
-    store.add(drop.id, drop);
-    const found = store.find('');
-    expect(found).toBeDefined();
-    expect(found?.id).toBe('');
-    expect(found?.fileName).toBe(drop.fileName);
+    expect(ledger.resolve({ kind: 'root' })).toBeUndefined();
   });
 });

@@ -1,33 +1,23 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { createDropServer } from '../../src/core/server.ts';
 import type { DropServer } from '../../src/core/server.ts';
-import { DropFactory } from '../../src/core/drop-factory.ts';
-import { DropStore } from '../../src/core/drop-store.ts';
-import { fileConfig } from '../setup.ts';
+import type { DropLedger } from '../../src/core/drop-ledger.ts';
+import { createTestServer, fileConfig, seedDropFromFile } from '../setup';
 
-describe('Server serveAtRoot (alias mode)', () => {
+describe('Server root address (alias mode)', () => {
   let server: DropServer;
-  let store: DropStore;
+  let ledger: DropLedger;
 
   afterEach(async () => {
     if (server) {
       await server.stop();
     }
-    store?.clear();
+    ledger?.clear();
   });
 
-  it('serves file at GET / when serveAtRoot is true and session exists at root', async () => {
-    store = new DropStore();
-    const factory = new DropFactory();
+  it('serves the file at GET / when a drop lives at the root address', async () => {
     const config = fileConfig('5m', '-a', 'john');
-    const drop = await factory.fromFile(config.filePath!, config.durationMs, config.alias);
-    store.add(drop.id, drop);
-
-    server = createDropServer(store, factory, {
-      port: 0,
-      serveAtRoot: true,
-      durationMs: config.durationMs,
-    });
+    ({ server, ledger } = createTestServer({ durationMs: config.durationMs }));
+    await seedDropFromFile(ledger, config.filePath!, config.durationMs, { kind: 'root' });
     const { url: baseUrl } = await server.start();
 
     const res = await fetch(`${baseUrl}/`);

@@ -8,7 +8,7 @@
 
 **Drag, Drop & Destroy** — High-performance ephemeral server for sharing files over the local network.
 
-No cloud, no accounts, no persistence. Files live in RAM and vanish after the first download or when time expires.
+No cloud, no accounts, no persistence. Files live in RAM and vanish when the drop expires.
 
 ---
 
@@ -44,7 +44,7 @@ Drop turns your computer into an instant transfer node **only on your local netw
 1. Run a single command.
 2. Drop generates a local URL (e.g. `http://192.168.1.15:8080/vuelo-402`).
 3. The recipient downloads the file at LAN speed.
-4. The server shuts down and wipes the data from RAM. Zero trace.
+4. When the timer runs out, the server shuts down and wipes the data from RAM. Zero trace.
 
 ---
 
@@ -52,7 +52,7 @@ Drop turns your computer into an instant transfer node **only on your local netw
 
 - **LAN Speed** — Transfer is only limited by your network card and router (1 Gbps+). No internet traffic.
 - **Ephemeral by Design** — Files are loaded into RAM at startup. No disk persistence.
-- **Self-Destructing URLs** — URL expires after a configurable time or immediately after the first download.
+- **Self-Destructing URLs** — URL expires after a configurable time.
 - **Drag & Drop Upload UI** — Web interface for receiving files without using the CLI.
 - **mDNS Aliases** — Publish friendly names like `john.local` so recipients don't need to type IP addresses.
 - **Automatic Port Negotiation** — If port 8080 is taken, it automatically finds the next available port.
@@ -126,17 +126,17 @@ Drop is built around a modular, dependency-injected architecture designed for te
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   DropCli   │────▶│ DropFactory │────▶│  DropStore  │
-│  (CLI Layer)│     │(Core Logic) │     │ (In-Memory) │
+│   DropCli   │────▶│ FileLoader  │────▶│ DropLedger  │
+│  (CLI Layer)│     │ (RAM load)  │     │ (In-Memory) │
 └─────────────┘     └─────────────┘     └──────┬──────┘
        │                                       │
        ▼                                       ▼
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  ArgsParser │     │   Router    │◀────│  Handlers   │
-│  (Commander)│     │(RequestDispatcher)  │ (Download,  │
-└─────────────┘     └──────┬──────┘     │  Upload,    │
-                           │            │  Static)    │
-                           ▼            └─────────────┘
+│  ArgsParser │     │  Request    │◀────│  Handlers   │
+│(node:util)  │     │ Dispatcher  │     │ (Download,  │
+└─────────────┘     └──────┬──────┘     │  Upload)    │
+                           │            └─────────────┘
+                           ▼
                     ┌─────────────┐
                     │ Bun.serve() │
                     │ (HTTP Server)│
@@ -145,10 +145,11 @@ Drop is built around a modular, dependency-injected architecture designed for te
 
 ### Key Design Decisions
 
-- **In-Memory Storage** — `DropStore` keeps file buffers in RAM. When the session expires or the server shuts down, the data is garbage-collected with zero disk footprint.
-- **Dependency Injection** — Core components (`DropServer`, `DropFactory`, `RequestDispatcher`) receive dependencies via constructors, making unit testing straightforward without mocking globals.
-- **Request Dispatching** — `RequestDispatcher` maps HTTP requests to specific handlers (`DownloadHandler`, `UploadHandler`, `StaticHandler`) using a pure router function.
-- **Graceful Shutdown** — SIGINT and SIGTERM handlers cleanly stop the HTTP server, unpublish mDNS aliases, and clear the store before exiting.
+- **In-Memory Storage** — `DropLedger` keeps file buffers in RAM and assigns each drop its identity and expiry. When a drop expires or the server shuts down, the data is garbage-collected with zero disk footprint.
+- **Typed Addressing** — A drop is reachable at the root path (alias mode) or at a unique slug, expressed as a `DropAddress` rather than an empty-string sentinel.
+- **Dependency Injection** — Core components (`DropServer`, `DropLedger`, `RequestDispatcher`) receive dependencies via constructors, making unit testing straightforward without mocking globals. The ledger's clock and slug source are injected too.
+- **Request Dispatching** — `RequestDispatcher` maps HTTP requests directly to download and upload handlers or static responses.
+- **Graceful Shutdown** — SIGINT and SIGTERM handlers cleanly stop the HTTP server, unpublish mDNS aliases, and clear the ledger before exiting.
 
 For a deeper dive, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
@@ -158,10 +159,8 @@ For a deeper dive, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 | Technology | Purpose |
 |------------|---------|
-| [Bun](https://bun.sh) | Runtime, bundler, test runner, and package manager |
+| [Bun](https://bun.sh) | Runtime, bundler, test runner, package manager, and `Bun.Archive` for multi-file uploads |
 | [TypeScript](https://www.typescriptlang.org) | Type-safe development |
-| [Commander.js](https://github.com/tj/commander.js) | CLI argument parsing |
-| [JSZip](https://stuk.github.io/jszip/) | Directory compression for multi-file uploads |
 | [Bonjour Service](https://github.com/onlxltd/bonjour-service) | mDNS publishing for local aliases |
 
 ---
@@ -186,7 +185,7 @@ bun run compile
 
 ## Testing
 
-The project follows a Test-Driven Development (TDD) approach with **66 tests** covering unit, integration, and session lifecycle scenarios.
+The project follows a Test-Driven Development (TDD) approach, covering unit, integration, and session lifecycle scenarios.
 
 ```bash
 bun test
@@ -195,7 +194,7 @@ bun test
 ### Test Coverage Areas
 
 - **CLI parsing** — Argument validation, error handling, defaults
-- **Core logic** — File loading, slug generation, session expiration, store cleanup
+- **Core logic** — File loading, slug generation, drop expiry, ledger cleanup
 - **HTTP handlers** — Download flow, upload flow, static assets, 404 handling
 - **Server lifecycle** — Port negotiation, graceful shutdown, resource cleanup
 - **Integration** — End-to-end session creation, download, and expiration

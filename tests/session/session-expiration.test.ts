@@ -1,56 +1,33 @@
 import { describe, expect, it } from 'bun:test';
-import { DropFactory } from '../../src/core/drop-factory.ts';
-import { DropStore } from '../../src/core/drop-store.ts';
-import { DropCleaner } from '../../src/core/drop-cleaner.ts';
-import { fileConfig } from '../setup.ts';
+import { DropLedger } from '../../src/core/drop-ledger.ts';
+import type { DropContent } from '../../src/drop.ts';
+
+const content: DropContent = {
+  fileName: 'f.txt',
+  data: Buffer.from('a'),
+  mimeType: 'text/plain',
+};
 
 describe('Session expiration', () => {
-  it('recognizes expired sessions', async () => {
-    const store = new DropStore();
-    const factory = new DropFactory();
-    const drop = await factory.fromFile(fileConfig('1s').filePath!, 1000);
-    store.add(drop.id, drop);
+  it('hides a drop once its duration elapses', () => {
+    let now = 1_000_000;
+    const ledger = new DropLedger(() => 'fixed-slug', () => now);
+    const drop = ledger.create(content, { durationMs: 1000 });
 
-    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(ledger.resolve(drop.address)).toBeDefined();
 
-    expect(drop.isExpired).toBe(true);
-    expect(store.find(drop.id)).toBeUndefined();
+    now += 1001;
+
+    expect(ledger.resolve(drop.address)).toBeUndefined();
   });
 
-  it('recognizes non-expired sessions', async () => {
-    const store = new DropStore();
-    const factory = new DropFactory();
-    const drop = await factory.fromFile(fileConfig('1h').filePath!, 3600000);
-    store.add(drop.id, drop);
+  it('keeps a drop available before it expires', () => {
+    let now = 1_000_000;
+    const ledger = new DropLedger(() => 'fixed-slug', () => now);
+    const drop = ledger.create(content, { durationMs: 60_000 });
 
-    expect(drop.isExpired).toBe(false);
-    expect(store.find(drop.id)).toBeDefined();
-  });
-});
+    now += 59_999;
 
-describe('DropCleaner', () => {
-  it('removes expired drops on cleanup', async () => {
-    const store = new DropStore();
-    const factory = new DropFactory();
-    store.onRemove((slug) => factory.release(slug));
-
-    const fresh = await factory.fromFile(fileConfig('1h').filePath!, 3600000);
-    store.add(fresh.id, fresh);
-
-    const expired = await factory.fromFile(fileConfig('1s').filePath!, 1000);
-    store.add(expired.id, expired);
-
-    await new Promise((resolve) => setTimeout(resolve, 1100));
-
-    const cleaner = new DropCleaner(store, 100);
-    cleaner.start();
-
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    expect(store.find(fresh.id)).toBeDefined();
-    expect(store.find(expired.id)).toBeUndefined();
-
-    cleaner.stop();
-    store.clear();
+    expect(ledger.resolve(drop.address)).toBeDefined();
   });
 });
