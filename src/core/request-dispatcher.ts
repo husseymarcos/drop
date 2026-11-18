@@ -1,49 +1,52 @@
-import { routeRequest } from './router.ts';
-import { DropStore } from './drop-store.ts';
+import { rootAddress, slugAddress } from '../drop.ts';
 import { DownloadHandler } from './handlers/download-handler.ts';
-import { NotFoundHandler } from './handlers/not-found-handler.ts';
-import { RootHandler } from './handlers/root-handler.ts';
-import { StaticHandler } from './handlers/static-handler.ts';
 import { UploadHandler } from './handlers/upload-handler.ts';
+import { htmlResponse, renderNotFound, renderTemplate, staticAssets } from './template-renderer.ts';
+
+export type DispatchOptions = {
+  durationMs: number;
+  acceptsUploads: boolean;
+};
 
 export class RequestDispatcher {
+  private readonly expiresAt: string;
+
   constructor(
-    private staticHandler: StaticHandler,
     private uploadHandler: UploadHandler,
     private downloadHandler: DownloadHandler,
-    private rootHandler: RootHandler,
-    private notFoundHandler: NotFoundHandler,
-    private store: DropStore,
-    private serveAtRoot: boolean,
-  ) {}
-
-  async dispatch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const route = routeRequest(request.method, url.pathname, url.searchParams);
-
-    switch (route.kind) {
-      case 'static-css':
-        return this.staticHandler.handle('css');
-      case 'static-js':
-        return this.staticHandler.handle('js');
-      case 'upload':
-        return this.uploadHandler.handle(request);
-      case 'download':
-        return this.downloadHandler.handle(route.slug, route.download);
-      case 'root':
-        return this.handleRoot(url.searchParams);
-      case 'not-found':
-        return this.notFoundHandler.handle();
-    }
+    private options: DispatchOptions,
+  ) {
+    this.expiresAt = new Date(Date.now() + options.durationMs).toISOString();
   }
 
-  private handleRoot(searchParams: URLSearchParams): Promise<Response> {
-    if (this.serveAtRoot) {
-      const drop = this.store.find('');
-      if (drop) {
-        return this.downloadHandler.handle('', searchParams.get('download') === '1');
-      }
+  async dispatch(request: Request): Promise<Response> {
+    const { pathname, searchParams } = new URL(request.url);
+    const wantsDownload = searchParams.get('download') === '1';
+
+    if (request.method === 'GET' && pathname === '/_/common.css') {
+      return this.serveStatic(staticAssets.css, 'text/css; charset=utf-8');
     }
-    return this.rootHandler.handle();
+    if (request.method === 'GET' && pathname === '/_/countdown.js') {
+      return this.serveStatic(staticAssets.countdown, 'application/javascript; charset=utf-8');
+    }
+    if (request.method === 'POST' && pathname === '/_/upload' && this.options.acceptsUploads) {
+      return this.uploadHandler.create(request);
+    }
+    if (request.method !== 'GET') return renderNotFound();
+    if (pathname === '/') return this.handleRoot(wantsDownload);
+
+    return this.downloadHandler.show(slugAddress(pathname.slice(1)), wantsDownload);
+  }
+
+  private serveStatic(body: string, contentType: string): Response {
+    return new Response(body, { headers: { 'Content-Type': contentType } });
+  }
+
+  private async handleRoot(wantsDownload: boolean): Promise<Response> {
+    const response = await this.downloadHandler.show(rootAddress, wantsDownload);
+    if (response.status !== 404 || !this.options.acceptsUploads) {
+      return response;
+    }
+    return htmlResponse(renderTemplate('root', { expiresAt: this.expiresAt }));
   }
 }

@@ -1,31 +1,49 @@
-import { Drop } from '../../drop.ts';
-import { DropFactory } from '../drop-factory.ts';
-import { DropStore } from '../drop-store.ts';
+import { type DropContent, pathFor } from '../../drop.ts';
+import type { ActivityLog } from '../../types.ts';
+import { formatBytes } from '../../utils.ts';
+import { DropLedger } from '../drop-ledger.ts';
+import { buildTarStream } from '../tar-stream.ts';
 
 export class UploadHandler {
   constructor(
-    private factory: DropFactory,
-    private store: DropStore,
+    private ledger: DropLedger,
     private durationMs: number,
+    private maxBytes: number,
+    private report: ActivityLog = () => {},
   ) {}
 
-  async handle(request: Request): Promise<Response> {
-    const formData = await request.formData() as globalThis.FormData;
+  /** Creates a drop from the files in a multipart upload request. */
+  async create(request: Request): Promise<Response> {
+    const declaredLength = Number(request.headers.get('content-length') ?? 0);
+    if (declaredLength > this.maxBytes) {
+      return this.tooLarge();
+    }
+
+    const formData = await this.readForm(request);
+    if (!formData) {
+      return new Response('Malformed upload', { status: 400 });
+    }
+
     const files = formData.getAll('file').filter((value) => value instanceof File) as File[];
 
     if (files.length === 0) {
       return new Response('Missing file', { status: 400 });
     }
 
-    const directoryName = this.extractDirectoryName(formData);
-    const drop = files.length === 1 && !directoryName
-      ? await this.handleSingle(files[0]!)
-      : await this.handleMultiple(files, directoryName);
+    if (files.reduce((total, file) => total + file.size, 0) > this.maxBytes) {
+      return this.tooLarge();
+    }
 
-    this.store.add(drop.id, drop);
+    const directoryName = this.extractDirectoryName(formData);
+    const content = files.length === 1 && !directoryName
+      ? this.singleContent(files[0]!)
+      : this.archiveContent(files, directoryName);
+
+    const drop = this.ledger.create(content, { durationMs: this.durationMs });
+    this.report(`Received ${drop.fileName} (${drop.sizeLabel})`, pathFor(drop.address));
 
     return new Response(JSON.stringify({
-      slug: drop.id,
+      path: pathFor(drop.address),
       fileName: drop.fileName,
       expiresAt: drop.expiresAt.toISOString(),
       fileSize: drop.fileSize,
@@ -35,6 +53,19 @@ export class UploadHandler {
     });
   }
 
+  private async readForm(request: Request): Promise<FormData | undefined> {
+    try {
+      return await request.formData() as globalThis.FormData;
+    }
+    catch {
+      return undefined;
+    }
+  }
+
+  private tooLarge(): Response {
+    return new Response(`Upload exceeds the ${formatBytes(this.maxBytes)} limit`, { status: 413 });
+  }
+
   private extractDirectoryName(formData: FormData): string | undefined {
     const field = formData.get('directoryName');
     return typeof field === 'string' && field.trim().length > 0
@@ -42,33 +73,18 @@ export class UploadHandler {
       : undefined;
   }
 
-  private async handleSingle(file: File): Promise<Drop> {
-    const arrayBuffer = await file.arrayBuffer();
-    return this.factory.fromUpload(
-      file.name || 'upload',
-      Buffer.from(arrayBuffer),
-      this.durationMs,
-    );
+  private singleContent(file: File): DropContent {
+    return {
+      fileName: file.name || 'upload',
+      mimeType: (file.type || 'application/octet-stream').split(';')[0]!,
+      size: file.size,
+      body: () => file,
+    };
   }
 
-  private async handleMultiple(files: File[], directoryName?: string): Promise<Drop> {
-    const archiveEntries: Record<string, Uint8Array> = {};
-
-    for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer();
-      archiveEntries[file.name] = new Uint8Array(arrayBuffer);
-    }
-
-    const archive = new Bun.Archive(archiveEntries);
-    const archiveBlob = await archive.blob();
-    const archiveBuffer = Buffer.from(await archiveBlob.arrayBuffer());
-
+  private archiveContent(files: File[], directoryName?: string): DropContent {
+    const entries = files.map((file) => ({ path: file.name, blob: file }));
     const name = directoryName ?? (files[0]?.name?.split('/')[0] || 'directory');
-
-    return this.factory.fromUpload(
-      `${name}.tar`,
-      archiveBuffer,
-      this.durationMs,
-    );
+    return buildTarStream(entries, name);
   }
 }

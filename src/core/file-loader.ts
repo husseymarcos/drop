@@ -1,73 +1,55 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import JSZip from 'jszip';
-import { Drop } from '../drop.ts';
-import { detectMimeType, formatBytes } from '../utils.ts';
+import type { DropContent } from '../drop.ts';
+import { buildTarStream, type TarEntry } from './tar-stream.ts';
 
 export class FileLoader {
-  async load(filePath: string, id: string, expiresAt: Date): Promise<Drop> {
-    console.debug(`Loading file: ${filePath}`);
-
+  async load(filePath: string): Promise<DropContent> {
     try {
       const fileStats = await stat(filePath);
-
-      let data: Buffer;
-      let fileName: string;
-      let mimeType: string;
-
-      if (fileStats.isDirectory()) {
-        const archive = await this.loadDirectoryAsArchive(filePath);
-        data = archive.data;
-        fileName = archive.fileName;
-        mimeType = archive.mimeType;
-      }
-      else {
-        data = await readFile(filePath);
-        fileName = basename(filePath);
-        mimeType = detectMimeType(fileName);
-      }
-
-      console.info(`File loaded: ${fileName} (${formatBytes(data.length)})`);
-
-      return new Drop(id, fileName, data.length, mimeType, data, expiresAt);
+      return fileStats.isDirectory()
+        ? await this.loadDirectory(filePath)
+        : this.loadFile(filePath, fileStats.size);
     }
     catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      console.error(`Failed to load file: ${filePath}`, err.message);
-      throw new Error(`Cannot load file: ${filePath}`, { cause: err });
+      throw new Error(`Cannot read ${filePath}: ${err.message}`, { cause: err });
     }
   }
 
-  private async loadDirectoryAsArchive(
-    directoryPath: string,
-  ): Promise<{ data: Buffer; fileName: string; mimeType: string }> {
-    const zip = new JSZip();
-    await this.addDirectoryToZip(zip, directoryPath, '');
-
-    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
-    const directoryName = basename(directoryPath);
-
+  private loadFile(filePath: string, size: number): DropContent {
+    const file = Bun.file(filePath);
     return {
-      data: buffer,
-      fileName: `${directoryName}.zip`,
-      mimeType: 'application/zip',
+      fileName: basename(filePath),
+      mimeType: file.type,
+      size,
+      body: () => file,
     };
   }
 
-  private async addDirectoryToZip(
-    zip: JSZip, directoryPath: string, prefix: string): Promise<void> {
-    const entries = await readdir(directoryPath, { withFileTypes: true });
+  private async loadDirectory(directoryPath: string): Promise<DropContent> {
+    const entries: TarEntry[] = [];
+    await this.collectEntries(directoryPath, '', entries);
+    return buildTarStream(entries, basename(directoryPath));
+  }
 
-    for (const entry of entries) {
+  private async collectEntries(
+    directoryPath: string,
+    prefix: string,
+    entries: TarEntry[],
+  ): Promise<void> {
+    const dirEntries = await readdir(directoryPath, { withFileTypes: true });
+
+    for (const entry of dirEntries) {
       const fullPath = join(directoryPath, entry.name);
       const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
 
       if (entry.isDirectory()) {
-        await this.addDirectoryToZip(zip, fullPath, relativePath);
+        await this.collectEntries(fullPath, relativePath, entries);
       }
       else if (entry.isFile()) {
-        const fileData = await readFile(fullPath);
-        zip.file(relativePath, fileData);
+        const { size } = await stat(fullPath);
+        entries.push({ path: relativePath, blob: Bun.file(fullPath).slice(0, size) });
       }
     }
   }

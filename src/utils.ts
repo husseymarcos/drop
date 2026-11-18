@@ -1,23 +1,6 @@
-export function detectMimeType(fileName: string): string {
-  const ext = fileName.split('.').pop()?.toLowerCase();
-
-  const mimeTypes: Record<string, string> = {
-    pdf: 'application/pdf',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    mp4: 'video/mp4',
-    mp3: 'audio/mpeg',
-    zip: 'application/zip',
-    json: 'application/json',
-    txt: 'text/plain',
-    html: 'text/html',
-    js: 'application/javascript',
-    ts: 'application/typescript',
-  };
-
-  return mimeTypes[ext || ''] || 'application/octet-stream';
+/** Converts a thrown value into a printable error message. */
+export function toMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function formatBytes(bytes: number): string {

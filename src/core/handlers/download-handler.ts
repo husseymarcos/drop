@@ -1,56 +1,50 @@
-import { Drop } from '../../drop.ts';
-import { DropStore } from '../drop-store.ts';
-import { renderTemplate } from '../template-renderer.ts';
+import { type DropAddress, pathFor } from '../../drop.ts';
+import type { ActivityLog } from '../../types.ts';
+import { DropLedger } from '../drop-ledger.ts';
+import {
+  htmlResponse,
+  renderExpired,
+  renderNotFound,
+  renderTemplate,
+} from '../template-renderer.ts';
 
 export class DownloadHandler {
-  constructor(private store: DropStore) {}
+  constructor(
+    private ledger: DropLedger,
+    private report: ActivityLog = () => {},
+  ) {}
 
-  async handle(slug: string, shouldDownload: boolean): Promise<Response> {
-    const drop = this.store.find(slug);
+  /** Renders a drop or returns its file response when download is requested. */
+  async show(address: DropAddress, shouldDownload: boolean): Promise<Response> {
+    const drop = this.ledger.resolve(address);
 
     if (!drop) {
-      return this.notFound();
+      return this.ledger.hasExpired(address) ? renderExpired() : renderNotFound();
     }
 
     if (!shouldDownload) {
-      return this.renderView(drop);
+      return htmlResponse(renderTemplate('download', {
+        filename: drop.fileName,
+        size: drop.sizeLabel,
+        path: pathFor(drop.address),
+        expiresAt: drop.expiresAt.toISOString(),
+      }));
     }
 
-    return this.serveFile(drop);
-  }
+    this.report(`Download started: ${drop.fileName}`);
 
-  private notFound(): Promise<Response> {
-    return renderTemplate('not-found', {}).then((html) =>
-      new Response(html, {
-        status: 404,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      }),
-    );
-  }
-
-  private renderView(drop: Drop): Promise<Response> {
-    return renderTemplate('download', {
-      filename: drop.fileName,
-      slug: drop.id,
-      expiresAt: drop.expiresAt.toISOString(),
-    }).then((html) =>
-      new Response(html, {
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      }),
-    );
-  }
-
-  private serveFile(drop: Drop): Response {
-    drop.consume();
-    console.info(`Session download registered: ${drop.id} (downloads: ${drop.downloadCount})`);
-
-    return new Response(drop.data, {
+    return new Response(drop.openBody(), {
       headers: {
         'Content-Type': drop.mimeType,
-        'Content-Disposition': `attachment; filename="${drop.fileName}"`,
+        'Content-Disposition': contentDisposition(drop.fileName),
         'Content-Length': drop.fileSize.toString(),
         'Cache-Control': 'no-store',
       },
     });
   }
+}
+
+function contentDisposition(fileName: string): string {
+  const fallback = fileName.replace(/[^\x20-\x7e]|["\\]/g, '_');
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

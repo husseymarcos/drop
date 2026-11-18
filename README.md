@@ -3,204 +3,92 @@
 [![CI](https://github.com/husseymarcos/drop/actions/workflows/ci.yml/badge.svg)](https://github.com/husseymarcos/drop/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@husseymarcos/drop.svg)](https://www.npmjs.com/package/@husseymarcos/drop)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Bun](https://img.shields.io/badge/Bun-000?logo=bun&logoColor=fff)](https://bun.sh)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=fff)](https://www.typescriptlang.org)
 
-**Drag, Drop & Destroy** — High-performance ephemeral server for sharing files over the local network.
+**Run a command, scan a QR code, and download the file over Wi-Fi. The link expires when you're done.**
 
-No cloud, no accounts, no persistence. Files live in RAM and vanish after the first download or when time expires.
-
----
-
-## Table of Contents
-
-- [The Problem](#the-problem)
-- [The Solution](#the-solution)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Development](#development)
-- [Testing](#testing)
-- [License](#license)
-
----
-
-## The Problem
-
-Sharing a large file between two computers in the same room is harder than it should be:
-
-| Method | Pain Point |
-|--------|------------|
-| **Cloud (Drive/Dropbox)** | Upload to the internet and download again. Wasted bandwidth and capped by your upload speed. |
-| **Messaging (WhatsApp/Slack)** | Compresses files, has size limits, and clutters your chats. |
-| **USB drives** | It's 2026; nobody wants to hunt for cables or ports. |
-
-## The Solution
-
-Drop turns your computer into an instant transfer node **only on your local network**.
-
-1. Run a single command.
-2. Drop generates a local URL (e.g. `http://192.168.1.15:8080/vuelo-402`).
-3. The recipient downloads the file at LAN speed.
-4. The server shuts down and wipes the data from RAM. Zero trace.
-
----
-
-## Features
-
-- **LAN Speed** — Transfer is only limited by your network card and router (1 Gbps+). No internet traffic.
-- **Ephemeral by Design** — Files are loaded into RAM at startup. No disk persistence.
-- **Self-Destructing URLs** — URL expires after a configurable time or immediately after the first download.
-- **Drag & Drop Upload UI** — Web interface for receiving files without using the CLI.
-- **mDNS Aliases** — Publish friendly names like `john.local` so recipients don't need to type IP addresses.
-- **Automatic Port Negotiation** — If port 8080 is taken, it automatically finds the next available port.
-- **Zero Configuration** — Works out of the box with no setup or accounts.
-
----
-
-## Installation
-
-### npm (recommended)
+<!-- TODO: 15-second demo GIF: terminal runs `drop report.pdf`, phone scans the QR, file downloads. -->
+<p align="center"><em>Demo GIF coming soon: terminal → QR code → phone download.</em></p>
 
 ```bash
-npm install -g @husseymarcos/drop
+curl -fsSL https://raw.githubusercontent.com/husseymarcos/drop/main/install.sh | sh
 ```
-
-### From source
 
 ```bash
-git clone https://github.com/husseymarcos/drop.git
-cd drop
-bun install
+drop ./report.pdf
 ```
+
+Drop prints a QR code and a link. Anyone on the same network opens it and gets one big Download button. No app, no account, no upload to the internet.
 
 ---
 
 ## Usage
 
-### Share a file
-
 ```bash
-drop -f ./video.mp4 -t 10m
+drop ./report.pdf              # share a file for 5 minutes (the default)
+drop ./photos -t 30m           # share a folder as a .tar for 30 minutes
+drop video.mp4 --host en0      # put the en0 address in the link (VPNs, docks, two adapters)
+drop report.pdf -a marcos      # also publish http://marcos.local
+drop receive -t 10m            # open a page where others can send files to you
 ```
 
-Output:
-
-```
-✓ Drop created successfully!
-
-File: video.mp4
-Size: 2.4 GB
-Expires: 2025-05-13T21:30:00.000Z
-
-URL: http://192.168.1.15:8080/vuelo-402
-
-Waiting for downloads until expiration...
-```
-
-### Receive files (upload UI)
-
-```bash
-drop -t 30m
-```
-
-Starts a server with a drag-and-drop web UI. Anyone on the network can upload files to you.
-
-### CLI Options
+While Drop runs, the terminal shows a live countdown. Press `q` or `Ctrl-C` to stop at once.
 
 | Flag | Description |
 |------|-------------|
-| `-f`, `--file` | Path to the file to share. |
-| `-t`, `--time` | Time until the drop expires (e.g. `5m`, `1h`, `300` seconds). Defaults to `5m`. |
-| `-p`, `--port` | Port to run the server on. Defaults to `8080`. |
-| `-a`, `--alias` | Publishes `alias.local` via mDNS for friendly URLs. |
-| `-h`, `--help` | Show help message. |
+| `<path>` or `-f, --file` | File or folder to share. Folders are streamed as a `.tar`. |
+| `-t, --time` | How long the link works: `90s`, `5m`, `1h`, or seconds (`300`). Default `5m`. |
+| `-p, --port` | Port to listen on. Default `8080`, or `80` with `--alias`. Moves to the next free port if taken. |
+| `-a, --alias` | Also publish `<alias>.local` over mDNS. The numeric-IP link is always printed too, because many Android phones can't resolve `.local`. |
+| `--host` | IPv4 address or interface name (`en0`, `wlan0`) to put in the link. Drop otherwise picks Wi-Fi/Ethernet over VPN and container adapters. |
+| `--max-upload` | Largest upload `drop receive` accepts, e.g. `500mb`, `2gb`. Default `1gb`. |
+| `-v, --version` | Print the version. |
+| `-h, --help` | Show help. |
 
----
+### Receive mode
 
-## Architecture
+`drop receive` is the only mode that accepts uploads. It serves a drag-and-drop page at the root URL; each upload gets its own download link, which Drop prints in your terminal. Uploads are held in memory and capped by `--max-upload`. When you share a file, the upload endpoint does not exist.
 
-Drop is built around a modular, dependency-injected architecture designed for testability and clean separation of concerns.
+## What Drop guarantees, and what it doesn't
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   DropCli   │────▶│ DropFactory │────▶│  DropStore  │
-│  (CLI Layer)│     │(Core Logic) │     │ (In-Memory) │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-       │                                       │
-       ▼                                       ▼
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  ArgsParser │     │   Router    │◀────│  Handlers   │
-│  (Commander)│     │(RequestDispatcher)  │ (Download,  │
-└─────────────┘     └──────┬──────┘     │  Upload,    │
-                           │            │  Static)    │
-                           ▼            └─────────────┘
-                    ┌─────────────┐
-                    │ Bun.serve() │
-                    │ (HTTP Server)│
-                    └─────────────┘
-```
+- **The link stops accepting new requests when the timer ends** or when you press `q`/`Ctrl-C`. Drop closes the server, including downloads still in progress.
+- **Traffic stays on your local network.** Drop does not contact any outside service.
+- **Links are hard to guess.** Each link ends in a random 8-character token (about 40 bits), on top of two words.
+- **It is plain HTTP.** Anyone on the same network who can see the traffic can read it. Don't use Drop on networks you don't trust for files that need to stay private.
+- **It does not delete or encrypt anything.** Shared files are read from your disk while someone downloads them and are left untouched. Uploads in receive mode live in memory and are released when Drop exits; Drop makes no further promises about wiping them.
 
-### Key Design Decisions
+## Install
 
-- **In-Memory Storage** — `DropStore` keeps file buffers in RAM. When the session expires or the server shuts down, the data is garbage-collected with zero disk footprint.
-- **Dependency Injection** — Core components (`DropServer`, `DropFactory`, `RequestDispatcher`) receive dependencies via constructors, making unit testing straightforward without mocking globals.
-- **Request Dispatching** — `RequestDispatcher` maps HTTP requests to specific handlers (`DownloadHandler`, `UploadHandler`, `StaticHandler`) using a pure router function.
-- **Graceful Shutdown** — SIGINT and SIGTERM handlers cleanly stop the HTTP server, unpublish mDNS aliases, and clear the store before exiting.
+| Method | Command |
+|--------|---------|
+| macOS / Linux (standalone binary, no Bun needed) | `curl -fsSL https://raw.githubusercontent.com/husseymarcos/drop/main/install.sh \| sh` |
+| npm (needs [Bun](https://bun.sh)) | `npm install -g @husseymarcos/drop` |
+| Bun, no install | `bunx @husseymarcos/drop ./report.pdf` |
+| Manual | Download `drop-<os>-<arch>` from [Releases](https://github.com/husseymarcos/drop/releases) and check it against `checksums.txt`. |
 
-For a deeper dive, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+The script installs to `~/.local/bin` (override with `DROP_INSTALL_DIR`) and pins a version with `DROP_VERSION=v1.1.0`. Binaries are published for macOS (arm64, x64) and Linux (x64, arm64). Windows and a Homebrew tap are planned.
 
----
+## How it works
 
-## Tech Stack
+1. Drop starts a small HTTP server ([`Bun.serve`](https://bun.sh/docs/api/http)) on your machine and picks the address other devices can reach.
+2. It prints the link and a QR code that encodes the numeric-IP link.
+3. Downloads stream straight from disk (folders as a tar built on the fly), so a 1 GB file doesn't need 1 GB of memory.
+4. When time is up, Drop stops the server and exits.
 
-| Technology | Purpose |
-|------------|---------|
-| [Bun](https://bun.sh) | Runtime, bundler, test runner, and package manager |
-| [TypeScript](https://www.typescriptlang.org) | Type-safe development |
-| [Commander.js](https://github.com/tj/commander.js) | CLI argument parsing |
-| [JSZip](https://stuk.github.io/jszip/) | Directory compression for multi-file uploads |
-| [Bonjour Service](https://github.com/onlxltd/bonjour-service) | mDNS publishing for local aliases |
-
----
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the module layout.
 
 ## Development
 
 ```bash
-# Run in watch mode
-bun run dev
-
-# Run linter
-bun run lint
-
-# Type check
-bunx tsc --noEmit
-
-# Build standalone binary
-bun run compile
+bun install
+bun test            # tests
+bunx eslint .       # lint
+bunx tsc --noEmit   # types
+bun run compile     # standalone binary in dist/drop
 ```
 
----
+On macOS, sign a locally compiled binary before running it: `codesign --remove-signature dist/drop && codesign -s - dist/drop`.
 
-## Testing
-
-The project follows a Test-Driven Development (TDD) approach with **66 tests** covering unit, integration, and session lifecycle scenarios.
-
-```bash
-bun test
-```
-
-### Test Coverage Areas
-
-- **CLI parsing** — Argument validation, error handling, defaults
-- **Core logic** — File loading, slug generation, session expiration, store cleanup
-- **HTTP handlers** — Download flow, upload flow, static assets, 404 handling
-- **Server lifecycle** — Port negotiation, graceful shutdown, resource cleanup
-- **Integration** — End-to-end session creation, download, and expiration
-
----
+Releases: bump `version` in `package.json`, then push a matching `v*` tag. The release workflow builds and signs the binaries, writes `checksums.txt`, and publishes a GitHub Release.
 
 ## License
 
