@@ -43,3 +43,14 @@ describe('DropServer lifecycle', () => {
     }
   });
 });
+
+describe('DropServer shutdown', () => {
+  it('refuses new requests as soon as it stops', async () => {
+    const { server } = createTestServer();
+    const { url } = await server.start();
+
+    await server.stop();
+
+    expect(fetch(`${url}/anything`)).rejects.toThrow();
+  });
+});

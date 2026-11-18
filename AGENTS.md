@@ -43,11 +43,12 @@ The codebase is a set of small, single-responsibility classes in an MVC-like sha
 
 ### Model (domain)
 
-- **Drop** (`src/drop.ts`) — the entity: address, file name, size, MIME type, data, expiry. Owns `sizeLabel`. A drop is addressed at the root path (alias mode) or by a unique slug.
+- **Drop** (`src/drop.ts`) — the entity: address, file name, size, MIME type, body factory, expiry. Owns `sizeLabel`. A drop is addressed at the root path (alias mode) or by a unique slug.
 - **DropLedger** (`src/core/drop-ledger.ts`) — in-memory record of live drops; assigns identity and expiry, hides expired drops, and clears on shutdown. Clock and slug source are injected.
-- **FileLoader** (`src/core/file-loader.ts`) — reads files/directories into RAM as `DropContent` (directories via `buildTarArchive`).
-- **SlugGenerator** (`src/core/slug-generator.ts`) — stateless, human-readable slug candidates (e.g. `swift-wave-402`).
-- **buildTarArchive** (`src/core/tar-archive.ts`) — turns named entries into a `.tar` `DropContent`.
+- **FileLoader** (`src/core/file-loader.ts`) — turns a path into streamable `DropContent` (directories via `buildTarStream`).
+- **SlugGenerator** (`src/core/slug-generator.ts`) — two words plus a random 8-character token (e.g. `brave-otter-k7m2q9xd`).
+- **buildTarStream** (`src/core/tar-stream.ts`) — streams named entries as a `.tar` `DropContent` with a known size.
+- **pickLanAddress** (`src/core/lan-address.ts`) — picks the address for the link, honoring `--host`.
 
 ### Router + Controllers
 
@@ -60,15 +61,16 @@ The codebase is a set of small, single-responsibility classes in an MVC-like sha
 
 ### CLI Layer
 
-- **parseCliArgs** (`src/cli/args-parser.ts`) — `node:util.parseArgs` parsing; duration formats (`5m`, `1h`, `90s`, `300`).
-- **DropCli** (`src/cli/cli.ts`) — orchestrates lifecycle, signal handling, friendly output.
+- **parseCliArgs** (`src/cli/args-parser.ts`) — `node:util.parseArgs` parsing; `drop <path>`, `drop receive`; duration formats (`5m`, `1h`, `90s`, `300`).
+- **DropCli** (`src/cli/cli.ts`) — orchestrates lifecycle and friendly output (QR card, live countdown via `src/cli/terminal-output.ts`).
+- **waitForStop** (`src/cli/stop-signal.ts`) — expiry, `q`, Ctrl-C, SIGINT/SIGTERM.
 - **DropServer** (`src/core/server.ts`) — `Bun.serve()` wrapper with port retry on `EADDRINUSE`.
 - **BonjourMdnsPublisher** (`src/core/mdns.ts`) — optional `--alias` mDNS publishing.
 
 ## Design Principles
 
 1. **Dependency Injection**: Components receive dependencies via constructors, enabling easy mocking for tests.
-2. **Memory Safety**: Files loaded into RAM only; no disk persistence.
+2. **No disk writes**: shared files stream from disk; uploads stay in RAM (see `docs/adr/0002-stream-shared-files-from-disk.md`).
 3. **Graceful Shutdown**: Proper cleanup of resources on exit or signal.
 4. **No barrel files**: export directly from where things are defined.
 5. **Prefer Bun libraries**: use built-in Bun APIs before external dependencies.
@@ -81,7 +83,7 @@ Tests are written following **Test-Driven Development** principles, focusing on 
 
 1. **CLI parsing:** `-f <file>` and `-t <time>`; parse duration (e.g. `5m`, `1h`, `90s`, `300`).
 2. **Minimal HTTP server** listening on a port (e.g. 8080) that serves a single file under a unique slug.
-3. **File loading** into memory (or ephemeral temp) at startup; do not persist to disk.
+3. **File loading**: stream shared files from disk at download time; do not write anything to disk.
 4. **Download** via GET on `/:slug`; serve the file. Downloads do not consume the drop.
 5. **Time‑based expiration:** timer based on `-t`; when it expires, close the server and release resources.
 6. **Optional:** Web UI (drag & drop) that uses the same server and shows the URL to copy.

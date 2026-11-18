@@ -19,7 +19,7 @@ bun install
 | `bun run lint` | Run ESLint |
 | `bun run lint:fix` | Fix auto-fixable lint issues |
 | `bunx tsc --noEmit` | Type check without emitting |
-| `bun run compile` | Build standalone binary |
+| `bun run compile` | Build standalone binary (on macOS, then run `codesign --remove-signature dist/drop && codesign -s - dist/drop`) |
 
 ## Pull Request Process
 

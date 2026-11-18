@@ -16,15 +16,29 @@ const createTempDirectoryWithFiles = async (): Promise<string> => {
   return root;
 };
 
-describe('FileLoader directory support', () => {
-  it('loads a directory recursively into a single archive', async () => {
+describe('FileLoader', () => {
+  it('streams a directory recursively as a single archive', async () => {
     const dirPath = await createTempDirectoryWithFiles();
-    const loader = new FileLoader();
 
-    const content = await loader.load(dirPath);
+    const content = await new FileLoader().load(dirPath);
+    const bytes = new Uint8Array(await new Response(content.body()).arrayBuffer());
+    const files = await new Bun.Archive(bytes).files();
 
     expect(content.fileName).toBe(`${basename(dirPath)}.tar`);
     expect(content.mimeType).toBe('application/x-tar');
-    expect(content.data.length).toBeGreaterThan(0);
+    expect(content.size).toBe(bytes.length);
+    expect(await files.get('nested/nested.txt')?.text()).toBe('nested file');
+  });
+
+  it('serves a single file from disk without reading it up front', async () => {
+    const dirPath = await createTempDirectoryWithFiles();
+    const filePath = join(dirPath, 'root.txt');
+
+    const content = await new FileLoader().load(filePath);
+
+    expect(content.fileName).toBe('root.txt');
+    expect(content.size).toBe(9);
+    expect(content.body()).toBeInstanceOf(Blob);
+    expect(await new Response(content.body()).text()).toBe('root file');
   });
 });

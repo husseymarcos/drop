@@ -2,23 +2,24 @@ import { describe, expect, it } from 'bun:test';
 import { SlugGenerator } from '../../src/core/slug-generator';
 
 describe('Slug generation format', () => {
-  it('creates identifiers in adjective-noun-number format', () => {
-    const generator = new SlugGenerator();
-    const slug = generator.next();
-    const parts = slug.split('-');
-
-    expect(parts.length).toBe(3);
-    const lastPart = parts[2] ?? '0';
-    expect(parseInt(lastPart, 10)).toBeGreaterThanOrEqual(0);
-    expect(parseInt(lastPart, 10)).toBeLessThanOrEqual(999);
+  it('pairs two readable words with a random 8-character token', () => {
+    const slug = new SlugGenerator().next();
+    expect(slug).toMatch(/^[a-z]+-[a-z]+-[a-z0-9]{8}$/);
   });
 
   it('creates URL-safe identifiers', () => {
     const generator = new SlugGenerator();
-
     for (let i = 0; i < 20; i++) {
-      const slug = generator.next();
-      expect(slug).toMatch(/^[a-z0-9-]+$/);
+      expect(generator.next()).toMatch(/^[a-z0-9-]+$/);
     }
+  });
+
+  it('draws the token from a large space so slugs are hard to guess', () => {
+    const generator = new SlugGenerator();
+    const tokens = new Set<string>();
+    for (let i = 0; i < 5000; i++) {
+      tokens.add(generator.next().split('-').at(-1)!);
+    }
+    expect(tokens.size).toBe(5000);
   });
 });

@@ -1,41 +1,39 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Drop - Ready to download</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111827' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2L3 7v10l9 5 9-5V7l-9-5z'/><path d='M12 22V12'/><path d='M3 7l9 5 9-5'/><path d='M12 12l9-5'/><path d='M12 12L3 7'/></svg>" type="image/svg+xml" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#8cc8f7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0b1a33" media="(prefers-color-scheme: dark)" />
+  <title>{{FILENAME}} · Drop</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='19' font-size='18'>☁️</text></svg>" />
   <link rel="stylesheet" href="/_/common.css" />
 </head>
 <body class="card-layout">
   <main class="card" aria-labelledby="drop-download-title" data-expires-at="{{EXPIRES_AT}}">
     <section data-drop-state="initial">
-      <div class="emoji" aria-hidden="true">📦</div>
-      <h1 id="drop-download-title">Your drop is ready</h1>
+      <div class="emoji" aria-hidden="true">☁️</div>
+      <h1 id="drop-download-title">A file is waiting for you</h1>
       <p class="filename">{{FILENAME}}</p>
-      <a class="button" href="{{PATH}}?download=1" data-drop-download-button>
-        <span>Download file</span>
+      <p class="filesize">{{SIZE}}</p>
+      <a class="button is-primary" href="{{PATH}}?download=1" download data-drop-download-button>
+        Download
       </a>
       <p class="hint" id="drop-expiry-hint">
-        This drop expires in
-        <span id="drop-expiry-countdown">—</span>
+        Link expires in <span id="drop-expiry-countdown">—</span>
       </p>
     </section>
 
     <section data-drop-state="completed" hidden>
       <div class="emoji" aria-hidden="true">✅</div>
-      <h1>Download completed</h1>
+      <h1>Download started</h1>
       <p class="filename">{{FILENAME}}</p>
-      <p class="hint">
-        Now try it yourself: install Drop on your machine.
-      </p>
+      <p class="hint">Check your downloads. Now try it yourself: install Drop on your machine.</p>
       <div class="install-card">
-        <p class="install-title">Install with npm (recommended)</p>
-        <code>npm install -g @husseymarcos/drop</code>
-        <p class="install-title secondary">Or from source</p>
-        <code>bun install</code>
-        <p class="install-title secondary">Quick start</p>
-        <code>drop -f &lt;file&gt; -t 5m</code>
+        <p class="install-title">macOS and Linux</p>
+        <code>curl -fsSL https://raw.githubusercontent.com/husseymarcos/drop/main/install.sh | sh</code>
+        <p class="install-title secondary">Share a file</p>
+        <code>drop ./report.pdf</code>
       </div>
     </section>
   </main>
@@ -44,52 +42,35 @@
   <script>
     (function () {
       const root = document.querySelector('main.card');
-      if (!root || !window.Drop || typeof window.Drop.startCountdown !== 'function') return;
+      const button = document.querySelector('[data-drop-download-button]');
+      const initialSection = document.querySelector('[data-drop-state="initial"]');
+      const completedSection = document.querySelector('[data-drop-state="completed"]');
+      if (!root || !(button instanceof HTMLAnchorElement)) return;
 
-      const expiresAtValue = root.getAttribute('data-expires-at');
+      const expiresAt = Date.parse(root.getAttribute('data-expires-at') || '');
       const countdownEl = document.getElementById('drop-expiry-countdown');
       const hintEl = document.getElementById('drop-expiry-hint');
 
-      if (expiresAtValue && countdownEl && hintEl) {
-        const expiresAtTime = Date.parse(expiresAtValue);
-
-        if (!Number.isNaN(expiresAtTime)) {
-          window.Drop.startCountdown({
-            expiresAt: expiresAtTime,
-            countdownEl,
-            hintEl,
-            expiredHintText: 'This drop has expired.',
-            onExpire: () => {
-              const button = document.querySelector('[data-drop-download-button]');
-              if (button instanceof HTMLAnchorElement) {
-                button.setAttribute('aria-disabled', 'true');
-                button.classList.add('is-disabled');
-                button.addEventListener('click', (event) => {
-                  event.preventDefault();
-                });
-              }
-            },
-          });
-        }
-      }
-
-      const downloadButton = document.querySelector('[data-drop-download-button]');
-      const initialSection = document.querySelector('[data-drop-state="initial"]');
-      const completedSection = document.querySelector('[data-drop-state="completed"]');
-
-      if (downloadButton instanceof HTMLAnchorElement && initialSection && completedSection) {
-        downloadButton.addEventListener('click', (event) => {
-          event.preventDefault();
-
-          const iframe = document.createElement('iframe');
-          iframe.src = downloadButton.href;
-          iframe.style.display = 'none';
-          document.body.appendChild(iframe);
-
-          initialSection.setAttribute('hidden', 'true');
-          completedSection.removeAttribute('hidden');
+      if (window.Drop && !Number.isNaN(expiresAt) && countdownEl && hintEl) {
+        window.Drop.startCountdown({
+          expiresAt,
+          countdownEl,
+          hintEl,
+          expiredHintText: 'This link has expired.',
+          onExpire: () => {
+            button.setAttribute('aria-disabled', 'true');
+            button.classList.add('is-disabled');
+          },
         });
       }
+
+      button.addEventListener('click', () => {
+        if (!initialSection || !completedSection) return;
+        setTimeout(() => {
+          initialSection.setAttribute('hidden', '');
+          completedSection.removeAttribute('hidden');
+        }, 600);
+      });
     }());
   </script>
 </body>

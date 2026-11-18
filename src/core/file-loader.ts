@@ -1,48 +1,42 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { DropContent } from '../drop.ts';
-import { buildTarArchive } from './tar-archive.ts';
-import { formatBytes } from '../utils.ts';
+import { buildTarStream, type TarEntry } from './tar-stream.ts';
 
 export class FileLoader {
   async load(filePath: string): Promise<DropContent> {
-    console.debug(`Loading file: ${filePath}`);
-
     try {
       const fileStats = await stat(filePath);
-      const content = fileStats.isDirectory()
+      return fileStats.isDirectory()
         ? await this.loadDirectory(filePath)
-        : await this.loadFile(filePath);
-
-      console.info(`File loaded: ${content.fileName} (${formatBytes(content.data.length)})`);
-
-      return content;
+        : this.loadFile(filePath, fileStats.size);
     }
     catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      console.error(`Failed to load file: ${filePath}`, err.message);
-      throw new Error(`Cannot load file: ${filePath}`, { cause: err });
+      throw new Error(`Cannot read ${filePath}: ${err.message}`, { cause: err });
     }
   }
 
-  private async loadFile(filePath: string): Promise<DropContent> {
+  private loadFile(filePath: string, size: number): DropContent {
+    const file = Bun.file(filePath);
     return {
       fileName: basename(filePath),
-      data: await readFile(filePath),
-      mimeType: Bun.file(filePath).type,
+      mimeType: file.type,
+      size,
+      body: () => file,
     };
   }
 
   private async loadDirectory(directoryPath: string): Promise<DropContent> {
-    const entries: Record<string, Uint8Array> = {};
+    const entries: TarEntry[] = [];
     await this.collectEntries(directoryPath, '', entries);
-    return buildTarArchive(entries, basename(directoryPath));
+    return buildTarStream(entries, basename(directoryPath));
   }
 
   private async collectEntries(
     directoryPath: string,
     prefix: string,
-    entries: Record<string, Uint8Array>,
+    entries: TarEntry[],
   ): Promise<void> {
     const dirEntries = await readdir(directoryPath, { withFileTypes: true });
 
@@ -54,7 +48,8 @@ export class FileLoader {
         await this.collectEntries(fullPath, relativePath, entries);
       }
       else if (entry.isFile()) {
-        entries[relativePath] = new Uint8Array(await readFile(fullPath));
+        const { size } = await stat(fullPath);
+        entries.push({ path: relativePath, blob: Bun.file(fullPath).slice(0, size) });
       }
     }
   }

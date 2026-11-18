@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { DropLedger } from '../../src/core/drop-ledger.ts';
-import type { DropContent } from '../../src/drop.ts';
+import { textContent } from '../setup';
 
-const content: DropContent = {
-  fileName: 'bedtimestory.txt',
-  data: Buffer.from('a'),
-  mimeType: 'text/plain',
-};
+const content = textContent('bedtimestory.txt', 'a');
 
 describe('Drop with alias (root address)', () => {
   it('stores a drop at the root address when alias is used', () => {

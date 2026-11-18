@@ -16,7 +16,7 @@ describe('Drop entity behavior', () => {
       'f.txt',
       1536,
       'text/plain',
-      Buffer.from('a'),
+      () => new Blob(['a']),
       new Date(Date.now() + 60_000),
     );
     expect(drop.sizeLabel).toBe('1.5 KB');

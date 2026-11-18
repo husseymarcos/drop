@@ -1,20 +1,26 @@
 import { parseArgs } from 'node:util';
 import type { DropConfig } from '../types.ts';
-import { DEFAULT_PORT } from '../types.ts';
+import { DEFAULT_MAX_UPLOAD_BYTES, DEFAULT_PORT } from '../types.ts';
 import { toMessage } from '../utils.ts';
-import { printHelp } from './help.ts';
+import { printHelp, printVersion } from './help.ts';
+
+const RECEIVE_COMMAND = 'receive';
 
 export const parseCliArgs = (argv: string[]): DropConfig => {
   try {
-    const { values: opts } = parseArgs({
+    const { values: opts, positionals } = parseArgs({
       args: argv,
       options: {
-        file: { type: 'string', short: 'f' },
-        time: { type: 'string', short: 't' },
-        port: { type: 'string', short: 'p' },
-        alias: { type: 'string', short: 'a' },
-        help: { type: 'boolean', short: 'h' },
+        'file': { type: 'string', short: 'f' },
+        'time': { type: 'string', short: 't' },
+        'port': { type: 'string', short: 'p' },
+        'alias': { type: 'string', short: 'a' },
+        'host': { type: 'string' },
+        'max-upload': { type: 'string' },
+        'help': { type: 'boolean', short: 'h' },
+        'version': { type: 'boolean', short: 'v' },
       },
+      allowPositionals: true,
       strict: true,
     });
 
@@ -23,12 +29,27 @@ export const parseCliArgs = (argv: string[]): DropConfig => {
       process.exit(0);
     }
 
-    return getConfig({
-      file: opts.file,
-      time: opts.time,
-      port: opts.port,
-      alias: opts.alias,
-    });
+    if (opts.version) {
+      printVersion();
+      process.exit(0);
+    }
+
+    const receiving = positionals[0] === RECEIVE_COMMAND;
+    const paths = receiving ? positionals.slice(1) : positionals;
+    const durationMs = parseTime(opts.time ?? DEFAULT_DURATION);
+    const alias = parseAlias(opts.alias);
+
+    return {
+      mode: receiving ? 'receive' : 'send',
+      filePath: receiving ? rejectPaths(paths, opts.file) : pickFile(paths, opts.file),
+      durationMs,
+      port: defaultPort(opts.port, alias),
+      alias,
+      host: opts.host?.trim() || undefined,
+      maxUploadBytes: opts['max-upload'] === undefined
+        ? DEFAULT_MAX_UPLOAD_BYTES
+        : parseSize(opts['max-upload']),
+    };
   }
   catch (error) {
     throw new Error(`Failed to parse arguments: ${toMessage(error)}`);
@@ -37,16 +58,22 @@ export const parseCliArgs = (argv: string[]): DropConfig => {
 
 const DEFAULT_DURATION = '5m';
 
-const getConfig = (args: {
-  file?: string;
-  time?: string;
-  port?: string;
-  alias?: string;
-}): DropConfig => {
-  const durationMs = parseTime(args.time ?? DEFAULT_DURATION);
-  const alias = parseAlias(args.alias);
-  const port = defaultPort(args.port, alias);
-  return { filePath: args.file, durationMs, port, alias };
+const pickFile = (paths: string[], flagged: string | undefined): string => {
+  const candidates = flagged === undefined ? paths : [flagged, ...paths];
+  if (candidates.length === 0) {
+    throw new Error('Missing file. Usage: drop <file> [-t 10m]');
+  }
+  if (candidates.length > 1) {
+    throw new Error('Drop shares one file at a time. Pass a folder to share several.');
+  }
+  return candidates[0]!;
+};
+
+const rejectPaths = (paths: string[], flagged: string | undefined): undefined => {
+  if (paths.length > 0 || flagged !== undefined) {
+    throw new Error('drop receive does not take a file. Run drop <file> to send one.');
+  }
+  return undefined;
 };
 
 /** Chooses the explicit port, the HTTP default for aliases, or the application default. */
@@ -66,6 +93,25 @@ const parseTime = (timeValue: string): number => {
     );
   }
   return durationMs;
+};
+
+const SIZE_UNITS: Record<string, number> = {
+  b: 1,
+  k: 1024,
+  kb: 1024,
+  m: 1024 ** 2,
+  mb: 1024 ** 2,
+  g: 1024 ** 3,
+  gb: 1024 ** 3,
+};
+
+const parseSize = (sizeValue: string): number => {
+  const match = sizeValue.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(b|kb?|mb?|gb?)?$/);
+  const bytes = match ? parseFloat(match[1]!) * SIZE_UNITS[match[2] ?? 'b']! : Number.NaN;
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    throw new Error(`Invalid size: "${sizeValue}". Use formats like: 500mb, 2gb`);
+  }
+  return Math.floor(bytes);
 };
 
 const parsePort = (portValue?: string): number => {

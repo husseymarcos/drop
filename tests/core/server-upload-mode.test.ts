@@ -15,7 +15,7 @@ describe('Root upload mode', () => {
   });
 
   it('renders a root view with a drag-and-drop upload card', async () => {
-    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000 }));
+    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000, acceptsUploads: true }));
     const { url: baseUrl } = await server.start();
 
     const res = await fetch(`${baseUrl}/`);
@@ -29,7 +29,7 @@ describe('Root upload mode', () => {
   });
 
   it('accepts uploads and returns a path that can be used to access the download page', async () => {
-    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000 }));
+    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000, acceptsUploads: true }));
     const { url: baseUrl } = await server.start();
 
     const formData = new FormData();
@@ -56,7 +56,7 @@ describe('Root upload mode', () => {
   });
 
   it('accepts directory uploads by archiving multiple files into a single downloadable archive', async () => {
-    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000 }));
+    ({ server, ledger } = createTestServer({ durationMs: 5 * 60 * 1000, acceptsUploads: true }));
     const { url: baseUrl } = await server.start();
 
     const formData = new FormData();
@@ -93,7 +93,10 @@ describe('Root upload mode', () => {
 
   it('respects the configured durationMs for upload sessions', async () => {
     const configuredDurationMs = 3000;
-    ({ server, ledger } = createTestServer({ durationMs: configuredDurationMs }));
+    ({ server, ledger } = createTestServer({
+      durationMs: configuredDurationMs,
+      acceptsUploads: true,
+    }));
     const { url: baseUrl } = await server.start();
 
     const formData = new FormData();

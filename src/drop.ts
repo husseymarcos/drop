@@ -4,10 +4,13 @@ export type DropAddress =
   | { kind: 'slug'; value: string }
   | { kind: 'root' };
 
+export type DropBody = Blob | ReadableStream<Uint8Array>;
+
 export type DropContent = {
   fileName: string;
-  data: Buffer;
   mimeType: string;
+  size: number;
+  body: () => DropBody;
 };
 
 export const rootAddress: DropAddress = { kind: 'root' };
@@ -26,7 +29,7 @@ export class Drop {
     public readonly fileName: string,
     public readonly fileSize: number,
     public readonly mimeType: string,
-    public readonly data: Buffer,
+    public readonly openBody: () => DropBody,
     public readonly expiresAt: Date,
   ) {}
 

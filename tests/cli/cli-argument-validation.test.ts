@@ -2,8 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { parseCliArgs } from '../../src/cli/args-parser.ts';
 
 describe('CLI argument validation', () => {
-  it('allows omitting file and defaults duration when omitted', () => {
-    expect(parseCliArgs(['-t', '5m']).durationMs).toBe(300000);
+  it('defaults duration when omitted', () => {
+    expect(parseCliArgs(['receive']).durationMs).toBe(300000);
     expect(parseCliArgs(['-f', 'video.mp4']).durationMs).toBe(300000);
   });
 

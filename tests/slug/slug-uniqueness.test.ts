@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { DropLedger } from '../../src/core/drop-ledger.ts';
-import type { DropContent } from '../../src/drop.ts';
+import { textContent } from '../setup';
 
-const content: DropContent = {
-  fileName: 'f.txt',
-  data: Buffer.from('a'),
-  mimeType: 'text/plain',
-};
+const content = textContent('f.txt', 'a');
 
 describe('Slug uniqueness', () => {
   it('assigns a unique slug to every created drop', () => {

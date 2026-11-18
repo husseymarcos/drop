@@ -22,9 +22,9 @@ export class DropLedger {
     const drop = new Drop(
       address,
       content.fileName,
-      content.data.length,
+      content.size,
       content.mimeType,
-      content.data,
+      content.body,
       expiresAt,
     );
 
@@ -34,11 +34,20 @@ export class DropLedger {
 
   resolve(address: DropAddress): Drop | undefined {
     const drop = this.drops.get(keyFor(address));
-    return drop && drop.expiresAt.getTime() > this.now() ? drop : undefined;
+    return drop && !this.isPast(drop) ? drop : undefined;
+  }
+
+  hasExpired(address: DropAddress): boolean {
+    const drop = this.drops.get(keyFor(address));
+    return drop !== undefined && this.isPast(drop);
   }
 
   clear(): void {
     this.drops.clear();
+  }
+
+  private isPast(drop: Drop): boolean {
+    return drop.expiresAt.getTime() <= this.now();
   }
 
   private uniqueSlug(): string {
@@ -49,7 +58,7 @@ export class DropLedger {
       }
     }
 
-    return `drop-${this.now()}`;
+    throw new Error('Could not find a free slug after 100 attempts');
   }
 }
 

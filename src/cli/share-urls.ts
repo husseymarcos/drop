@@ -3,7 +3,7 @@ import type { DropConfig } from '../types.ts';
 import { toMdnsHost } from '../core/mdns.ts';
 
 export function buildShareUrls(
-  config: DropConfig,
+  config: Pick<DropConfig, 'alias'>,
   baseUrl: string,
   address: DropAddress,
   includeAlias: boolean,
