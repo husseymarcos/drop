@@ -1,151 +1,100 @@
-import { existsSync } from 'node:fs';
+import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import { DropServer, createDropServer } from '../core/server.ts';
 import { BonjourMdnsPublisher, toMdnsHost } from '../core/mdns.ts';
-import type { MdnsPublisher } from '../core/mdns.ts';
-import { DropCleaner } from '../core/drop-cleaner.ts';
-import { DropFactory } from '../core/drop-factory.ts';
-import { DropStore } from '../core/drop-store.ts';
+import { DropLedger } from '../core/drop-ledger.ts';
+import { FileLoader } from '../core/file-loader.ts';
+import { pickLanAddress } from '../core/lan-address.ts';
+import { rootAddress } from '../drop.ts';
 import type { DropConfig } from '../types.ts';
-import { formatBytes } from '../utils.ts';
+import { formatBytes, toMessage } from '../utils.ts';
 import { parseCliArgs } from './args-parser.ts';
 import { buildShareUrls } from './share-urls.ts';
+import { waitForStop, type StopReason } from './stop-signal.ts';
+import { LiveStatus, renderQr, renderShareCard } from './terminal-output.ts';
+
+const GOODBYE: Record<StopReason, string> = {
+  expired: 'Time is up. The link no longer works.',
+  interrupted: 'Stopped. The link no longer works.',
+  quit: 'Stopped. The link no longer works.',
+};
 
 export class DropCli {
-  private mdnsPublisher: MdnsPublisher;
-  private shutdownInProgress = false;
-
-  constructor(mdnsPublisher: MdnsPublisher = new BonjourMdnsPublisher()) {
-    this.mdnsPublisher = mdnsPublisher;
-  }
+  private mdnsPublisher = new BonjourMdnsPublisher();
 
   async run(args: string[]): Promise<void> {
     try {
       const config = parseCliArgs(args);
-      await this.validateAndRun(config);
+      await this.share(config);
+      process.exit(0);
     }
     catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(message);
+      console.error(toMessage(error));
       console.error('\nRun with -h or --help for usage information.');
       process.exit(1);
     }
   }
 
-  private async validateAndRun(config: DropConfig): Promise<void> {
-    const store = new DropStore();
-    const factory = new DropFactory();
-    store.onRemove((slug) => factory.release(slug));
+  private async share(config: DropConfig): Promise<void> {
+    const content = config.filePath
+      ? await new FileLoader().load(resolve(config.filePath))
+      : undefined;
+    const ledger = new DropLedger();
+    const expiresAt = Date.now() + config.durationMs;
+    const status = new LiveStatus(process.stdout, expiresAt);
+    let baseUrl = '';
 
-    const cleaner = new DropCleaner(store);
-    cleaner.start();
-
-    const server = createDropServer(store, factory, {
+    const server = createDropServer(ledger, {
       port: config.port,
-      serveAtRoot: !!config.alias,
       durationMs: config.durationMs,
+      advertisedHost: pickLanAddress(networkInterfaces(), config.host),
+      acceptsUploads: config.mode === 'receive',
+      maxUploadBytes: config.maxUploadBytes,
+      report: (message, path) => status.log(path ? `${message}: ${baseUrl}${path}` : message),
     });
 
-    let activePort: number;
-    let baseUrl: string;
-
-    try {
-      const serverInfo = await server.start();
-      activePort = serverInfo.port;
-      baseUrl = serverInfo.url;
-    }
-    catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(message);
-    }
-
+    const started = await server.start();
+    baseUrl = started.url;
+    const activePort = started.port;
     const aliasPublished = this.publishAlias(config, activePort);
 
-    if (config.filePath) {
-      const resolvedPath = resolve(config.filePath);
-      if (!existsSync(resolvedPath)) {
-        throw new Error(`File not found: ${config.filePath}`);
-      }
-      config.filePath = resolvedPath;
-
-      const drop = await factory.fromFile(config.filePath, config.durationMs, config.alias);
-      store.add(drop.id, drop);
-      const urls = buildShareUrls(config, baseUrl, drop.id, aliasPublished);
-
-      console.log('\n✓ Drop created successfully!\n');
-      console.log(`File: ${drop.fileName}`);
-      console.log(`Size: ${formatBytes(drop.fileSize)}`);
-      console.log(`Expires: ${drop.expiresAt.toISOString()}`);
-      if (urls.aliasUrl) {
-        console.log(`\nAlias URL: ${urls.aliasUrl}`);
-        console.log(`LAN URL:   ${urls.lanUrl}\n`);
-      }
-      else {
-        console.log(`\nURL: ${urls.lanUrl}\n`);
-      }
-      console.log('Waiting for downloads until expiration...\n');
+    if (content) {
+      const drop = ledger.create(content, {
+        durationMs: config.durationMs,
+        address: config.alias ? rootAddress : undefined,
+      });
+      const urls = buildShareUrls(config, baseUrl, drop.address, aliasPublished);
+      console.log(renderShareCard({
+        title: `${drop.fileName} · ${drop.sizeLabel}`,
+        urls,
+        qr: renderQr(urls.lanUrl),
+      }));
     }
     else {
-      console.log('\n✓ Drop server ready for uploads!\n');
-
-      if (aliasPublished && config.alias) {
-        const urls = buildShareUrls(config, baseUrl, '', true);
-        if (urls.aliasUrl) {
-          console.log(`Alias Upload UI: ${urls.aliasUrl}`);
-          console.log(`LAN Upload UI:   ${urls.lanUrl}\n`);
-        }
-        else {
-          console.log(`Upload UI: ${baseUrl}/\n`);
-        }
-      }
-      else {
-        console.log(`Upload UI: ${baseUrl}/\n`);
-      }
-
-      console.log(`Expires: in ${config.durationMs / 1000}s\n`);
+      const urls = buildShareUrls(config, baseUrl, rootAddress, aliasPublished);
+      console.log(renderShareCard({
+        title: `Receiving files (up to ${formatBytes(config.maxUploadBytes)} per upload)`,
+        urls,
+        qr: renderQr(urls.lanUrl),
+      }));
     }
 
-    this.setupShutdownHandlers(server, store, cleaner);
-    await this.waitForExpiration(config.durationMs);
-    await this.shutdown(server, store, cleaner);
+    status.start();
+    const reason = await waitForStop({
+      durationMs: config.durationMs,
+      keyboard: process.stdin,
+      signals: process,
+    });
+    status.stop();
+
+    await this.shutdown(server, ledger);
+    console.log(`  ${GOODBYE[reason]}`);
   }
 
-  private setupShutdownHandlers(
-    server: DropServer,
-    store: DropStore,
-    cleaner: DropCleaner,
-  ): void {
-    const shutdown = (signal: string) => {
-      if (this.shutdownInProgress) return;
-      this.shutdownInProgress = true;
-      console.log(`Received ${signal}, shutting down...`);
-      void this.shutdown(server, store, cleaner)
-        .then(() => process.exit(0))
-        .catch((error) => {
-          const message = error instanceof Error ? error.message : String(error);
-          console.error(`Error during shutdown: ${message}`);
-          process.exit(1);
-        });
-    };
-
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-  }
-
-  private async waitForExpiration(durationMs: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, durationMs));
-  }
-
-  private async shutdown(
-    server: DropServer,
-    store: DropStore,
-    cleaner: DropCleaner,
-  ): Promise<void> {
-    await this.mdnsPublisher.stop();
-    cleaner.stop();
+  private async shutdown(server: DropServer, ledger: DropLedger): Promise<void> {
     await server.stop();
-    store.clear();
-    console.log('Goodbye!');
+    ledger.clear();
+    await this.mdnsPublisher.stop();
   }
 
   private publishAlias(config: DropConfig, port: number): boolean {
@@ -155,14 +104,10 @@ export class DropCli {
       return true;
     }
     catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`Could not publish mDNS alias "${toMdnsHost(config.alias)}": ${message}`);
+      console.warn(
+        `Could not publish mDNS alias "${toMdnsHost(config.alias)}": ${toMessage(error)}`,
+      );
       return false;
     }
   }
-}
-
-if (import.meta.main) {
-  const cli = new DropCli();
-  await cli.run(process.argv.slice(2));
 }

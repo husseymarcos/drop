@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.12
+      - run: bun install --frozen-lockfile
+      - run: bunx eslint .
+      - run: bunx tsc --noEmit
+      - run: bun test
+
+      - name: Tag matches package.json version
+        run: |
+          expected="v$(bun -e 'console.log(require("./package.json").version)')"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json ($expected)"
+            exit 1
+          fi
+
+  build:
+    name: Build ${{ matrix.asset }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { asset: drop-darwin-arm64, target: bun-darwin-arm64, os: macos-latest, smoke: true }
+          - { asset: drop-darwin-x64, target: bun-darwin-x64, os: macos-latest, smoke: false }
+          - { asset: drop-linux-x64, target: bun-linux-x64-baseline, os: ubuntu-latest, smoke: true }
+          - { asset: drop-linux-arm64, target: bun-linux-arm64, os: ubuntu-latest, smoke: false }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.12
+      - run: bun install --frozen-lockfile
+
+      - name: Compile
+        run: bun build ./index.ts --compile --minify --target=${{ matrix.target }} --outfile=dist/${{ matrix.asset }}
+
+      - name: Ad-hoc sign (macOS kills unsigned binaries)
+        if: startsWith(matrix.asset, 'drop-darwin')
+        run: |
+          codesign --remove-signature dist/${{ matrix.asset }} || true
+          codesign --sign - --force dist/${{ matrix.asset }}
+          codesign --verify dist/${{ matrix.asset }}
+
+      - name: Smoke test
+        if: matrix.smoke
+        run: dist/${{ matrix.asset }} --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum drop-* > checksums.txt && cat checksums.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/drop-* dist/checksums.txt install.sh \
+            --title "$GITHUB_REF_NAME" --generate-notes

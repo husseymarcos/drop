@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Drop - File Sharing</title>
+  <title>Send a file · Drop</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111827' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2L3 7v10l9 5 9-5V7l-9-5z'/><path d='M12 22V12'/><path d='M3 7l9 5 9-5'/><path d='M12 12l9-5'/><path d='M12 12L3 7'/></svg>" type="image/svg+xml" />
   <link rel="stylesheet" href="/_/common.css" />
 </head>
   <body class="root-layout" data-drop-root="1" data-expires-at="{{EXPIRES_AT}}">
   <main class="root-main">
-    <section class="root-list" aria-label="Archivos subidos">
+    <section class="root-list" aria-label="Uploaded files">
       <article class="card upload-card" data-upload-card>
-        <div class="emoji" aria-hidden="true">📁</div>
-        <h1>Drop</h1>
-        <p class="hint">Arrastra un archivo aquí o haz clic para elegirlo.</p>
+        <div class="emoji" aria-hidden="true">☁️</div>
+        <h1>Send a file to this computer</h1>
+        <p class="hint">Drag a file or folder here, or tap to choose one.</p>
         <form id="drop-upload-form">
           <input
             id="drop-file-input"
@@ -24,11 +24,11 @@
             hidden
           />
           <button type="button" class="button" id="drop-upload-button">
-            <span>Elegir archivo</span>
+            <span>Choose file</span>
           </button>
         </form>
         <p class="hint" id="drop-root-expiry-hint">
-          Tiempo restante para subir y descargar archivos:
+          Accepting files for
           <span id="drop-root-expiry-countdown">—</span>
         </p>
       </article>
@@ -62,7 +62,7 @@
         expiresAt,
         countdownEl: expiryCountdown,
         hintEl: expiryHint,
-        expiredHintText: 'Este servidor de subida ha expirado.',
+        expiredHintText: 'This upload page has expired.',
         onExpire: () => {
           uploadCard.classList.add('is-disabled');
           uploadButton.setAttribute('disabled', 'true');
@@ -130,7 +130,7 @@
         });
       };
 
-      const uploadDirectory = async (files, directoryName) => {
+      const uploadFiles = async (files, directoryName) => {
         if (!files || files.length === 0) return;
 
         const formData = new FormData();
@@ -152,18 +152,23 @@
         });
 
         if (!response.ok) {
+          expiryHint.classList.add('upload-error');
+          expiryHint.textContent = response.status === 413
+            ? 'That file is larger than the sender allows.'
+            : 'Upload failed. Try again.';
           return;
         }
 
         const payload = await response.json();
-        if (!payload || !payload.slug) {
+        if (!payload || !payload.path) {
           return;
         }
 
-        addUploadedCard(payload, null, {
-          isDirectory: true,
-          displayName: directoryName,
-        });
+        addUploadedCard(
+          payload,
+          directoryName ? null : files[0].file,
+          directoryName ? { isDirectory: true, displayName: directoryName } : undefined,
+        );
       };
 
       uploadCard.addEventListener('drop', async (event) => {
@@ -187,15 +192,14 @@
 
           if (directoryEntries.length > 0) {
             const allFiles = [];
-            // Collect files for the first dropped directory only, to keep the model "one drop per archive"
             const entry = directoryEntries[0];
             const collected = await collectFilesFromDirectoryEntry(entry);
             allFiles.push(...collected);
 
             if (allFiles.length > 0) {
               const firstPath = allFiles[0].relativePath || allFiles[0].file.name;
-              const directoryName = firstPath.split('/')[0] || entry.name || 'directorio';
-              await uploadDirectory(allFiles, directoryName);
+              const directoryName = firstPath.split('/')[0] || entry.name || 'folder';
+              await uploadFiles(allFiles, directoryName);
               return;
             }
           }
@@ -206,9 +210,8 @@
 
         const fileArray = Array.from(files);
         for (const file of fileArray) {
-          // Para archivos "normales" (no directorios), cada uno se sube como drop independiente
           // eslint-disable-next-line no-await-in-loop
-          await uploadFile(file);
+          await uploadFiles([{ file, relativePath: file.name }]);
         }
       });
 
@@ -234,14 +237,13 @@
           });
 
           const firstPath = normalized[0].relativePath;
-          const directoryName = firstPath.split('/')[0] || 'directorio';
+          const directoryName = firstPath.split('/')[0] || 'folder';
 
-          await uploadDirectory(normalized, directoryName);
+          await uploadFiles(normalized, directoryName);
         } else {
           for (const file of allFiles) {
-            // Sube cada archivo como drop independiente
             // eslint-disable-next-line no-await-in-loop
-            await uploadFile(file);
+            await uploadFiles([{ file, relativePath: file.name }]);
           }
         }
 
@@ -257,27 +259,6 @@
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         const value = bytes / (k ** i);
         return `${value.toFixed(value >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
-      };
-
-      const uploadFile = async (file) => {
-        const formData = new FormData();
-        formData.set('file', file, file.name);
-
-        const response = await fetch('/_/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = await response.json();
-        if (!payload || !payload.slug) {
-          return;
-        }
-
-        addUploadedCard(payload, file);
       };
 
       const addUploadedCard = (payload, file, options) => {
@@ -298,7 +279,7 @@
 
         const title = document.createElement('h2');
         title.className = 'uploaded-card-title';
-        title.textContent = displayNameOverride || payload.fileName || file?.name || 'Archivo subido';
+        title.textContent = displayNameOverride || payload.fileName || file?.name || 'Uploaded file';
 
         const meta = document.createElement('p');
         meta.className = 'uploaded-card-meta';
@@ -317,7 +298,7 @@
 
         if (file && mimeType.startsWith('image/')) {
           const img = document.createElement('img');
-          img.alt = payload.fileName || file.name || 'Vista previa';
+          img.alt = payload.fileName || file.name || 'Preview';
           img.loading = 'lazy';
           const objectUrl = URL.createObjectURL(file);
           img.src = objectUrl;
@@ -330,14 +311,14 @@
           const embed = document.createElement('embed');
           embed.src = objectUrl;
           embed.type = 'application/pdf';
-          embed.setAttribute('aria-label', payload.fileName || file.name || 'Vista previa PDF');
+          embed.setAttribute('aria-label', payload.fileName || file.name || 'PDF preview');
           previewContainer.appendChild(embed);
         }
 
         const link = document.createElement('a');
-        link.href = `/${payload.slug}?download=1`;
+        link.href = `${payload.path}?download=1`;
         link.className = 'button';
-        link.textContent = 'Descargar';
+        link.textContent = 'Download';
         link.addEventListener('click', (event) => {
           event.preventDefault();
           const iframe = document.createElement('iframe');

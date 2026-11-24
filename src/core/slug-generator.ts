@@ -1,31 +1,24 @@
-import { defaultSuffix, generate } from 'memorable-ids';
+import { generate } from 'memorable-ids';
+
+const TOKEN_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz';
+const TOKEN_LENGTH = 8;
 
 export class SlugGenerator {
-  private usedSlugs: Set<string> = new Set();
+  next(): string {
+    const words = generate({ components: 2, separator: '-' });
+    return `${words}-${randomToken()}`;
+  }
+}
 
-  generate(): string {
-    let attempts = 0;
-    const maxAttempts = 100;
-
-    while (attempts < maxAttempts) {
-      const slug = generate({
-        components: 2,
-        suffix: defaultSuffix,
-        separator: '-',
-      });
-
-      if (!this.usedSlugs.has(slug)) {
-        this.usedSlugs.add(slug);
-        return slug;
+function randomToken(): string {
+  const limit = 256 - (256 % TOKEN_ALPHABET.length);
+  let token = '';
+  while (token.length < TOKEN_LENGTH) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(TOKEN_LENGTH * 2))) {
+      if (byte < limit && token.length < TOKEN_LENGTH) {
+        token += TOKEN_ALPHABET[byte % TOKEN_ALPHABET.length];
       }
-
-      attempts++;
     }
-
-    return `drop-${Date.now()}`;
   }
-
-  release(slug: string): void {
-    this.usedSlugs.delete(slug);
-  }
+  return token;
 }

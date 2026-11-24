@@ -63,5 +63,17 @@ jobs:
       - name: Type check
         run: bunx tsc --noEmit
 
-      - name: Build
-        run: bun build --target=bun index.ts --outfile=dist/drop.js
+      - name: Compile standalone binary
+        run: bun run compile
+
+      - name: Smoke test binary (views embedded, serves a file)
+        run: |
+          cd "$(mktemp -d)"
+          echo hello > hello.txt
+          "$GITHUB_WORKSPACE/dist/drop" hello.txt -t 30s -p 18080 --host 127.0.0.1 > out.txt 2>&1 &
+          sleep 2
+          cat out.txt
+          url=$(grep -oE 'http://127.0.0.1:18080/[a-z0-9-]+' out.txt)
+          curl -fsS "$url" | grep -q hello.txt
+          curl -fsS "$url?download=1" | grep -q hello
+          kill %1
